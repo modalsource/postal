@@ -5,7 +5,7 @@ on: [push]
 jobs:
   release-please:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main-modalsource'
     outputs:
       release_created: ${{ steps.release-please.outputs.release_created }}
       tag_name: ${{ steps.release-please.outputs.tag_name }} # e.g. v1.0.0
@@ -16,6 +16,7 @@ jobs:
         id: release-please
         with:
           command: manifest
+          release-type: manifest
 
   build:
     name: CI Image Build
@@ -54,10 +55,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: docker-compose pull
         env:
-          POSTAL_IMAGE: ghcr.io/postalserver/postal:ci-${{ github.sha }}
+          POSTAL_IMAGE: ghcr.io/modalsource/postal:ci-${{ github.sha }}
       - run: docker-compose run postal sh -c 'bundle exec rspec'
         env:
-          POSTAL_IMAGE: ghcr.io/postalserver/postal:ci-${{ github.sha }}
+          POSTAL_IMAGE: ghcr.io/modalsource/postal:ci-${{ github.sha }}
 
   release-branch:
     name: Release (branch)
@@ -80,7 +81,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: info
         run: |
-          IMAGE=ghcr.io/postalserver/postal
+          IMAGE=ghcr.io/modalsource/postal
 
           REF="${GITHUB_REF#refs/heads/}"
           if [ -z "$REF" ]; then exit 1; fi
@@ -90,7 +91,7 @@ jobs:
           echo "branch=${REF}" >> "$GITHUB_OUTPUT"
 
           echo 'tags<<EOF' >> "$GITHUB_OUTPUT"
-          if [[ "$REF" == "main" ]]; then
+          if [[ "$REF" == "main-modalsource" ]]; then
             echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
           else
             echo "${IMAGE}:branch-${REF}" >> "$GITHUB_OUTPUT"
@@ -126,8 +127,8 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/postalserver/postal:stable
-            ghcr.io/postalserver/postal:${{ needs.release-please.outputs.version }}
+            ghcr.io/modalsource/postal:stable
+            ghcr.io/modalsource/postal:${{ needs.release-please.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           target: full
