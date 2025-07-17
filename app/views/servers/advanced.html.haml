@@ -39,6 +39,12 @@
               By default, outgoing messages aren't scanned for spam. You can specify a threshold here and outgoing messages that exceed this will
               not be permitted to be sent through the mail server.
         .fieldSet__field
+          = f.label :truemail_enabled, "Enable Truemail validation", :class => 'fieldSet__label'
+          .fieldSet__input
+            = f.select :truemail_enabled, [["Disabled", false], ["Enabled", true]], {}, :class => 'input input--select'
+            %p.fieldSet__text
+              If enabled, email addresses will be validated using Truemail service before sending messages. This helps reduce bounces and improve deliverability.
+        .fieldSet__field
           = f.label :message_retention_days, :class => 'fieldSet__label'
           .fieldSet__input
             = f.text_field :message_retention_days, :class => 'input input--text'

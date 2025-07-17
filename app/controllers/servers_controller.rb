@@ -54,6 +54,7 @@ class ServersController < ApplicationController
         :message_retention_days,
         :raw_message_retention_days,
         :raw_message_retention_size,
+        :truemail_enabled,
       ]
     end
 
