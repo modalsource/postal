@@ -2,6 +2,30 @@
 
 This file contains all the latest changes and updates to Postal.
 
+## [3.4.0](https://github.com/modalsource/postal/compare/3.3.4...3.4.0) (2025-07-17)
+
+
+### Features
+
+* add Copilot instructions and update .gitignore ([5ec2fd0](https://github.com/modalsource/postal/commit/5ec2fd0290d974cf23da53b665e8d5becb66c1ba))
+* add Truemail validation feature and configuration options ([9a0bdb8](https://github.com/modalsource/postal/commit/9a0bdb8b780ea913842429d0f708d8c17a138f1b))
+* update schema to include truemail_enabled boolean field ([0c4e036](https://github.com/modalsource/postal/commit/0c4e0368d14a2310f96fd1dc74672d243a34c30d))
+
+
+### Bug Fixes
+
+* oidc scopes are invalid when concatenated ([#3332](https://github.com/modalsource/postal/issues/3332)) ([9c5f96a](https://github.com/modalsource/postal/commit/9c5f96ae90cf06dcd5db776806865752f667bd95))
+* remove validation_failed from log output in outgoing_message_processor ([8394fac](https://github.com/modalsource/postal/commit/8394fac0f72b16c3f69848a87179ac31321761e9))
+* typo in the credentials page ([fd3c7cc](https://github.com/modalsource/postal/commit/fd3c7ccdf6dc4ee0a76c9523cbd735159e4b8000))
+* update CI configuration for modalsource branch and image ([1d6e051](https://github.com/modalsource/postal/commit/1d6e05190c5a59b8e9e2d01d6251c1998c28b0c8))
+* update CI configuration for modalsource branch and image ([76b474b](https://github.com/modalsource/postal/commit/76b474b7485295462718bff64aea741963bb170c))
+* update docker-compose commands to use the new syntax ([a75b520](https://github.com/modalsource/postal/commit/a75b520611a241af86384a7f9018f53add42cce3))
+
+
+### Tests
+
+* add specs for Truemail email validation process and logging ([dcd0b2c](https://github.com/modalsource/postal/commit/dcd0b2c83701c603d87b08972ca5d70dcac67e18))
+
 ## [3.3.4](https://github.com/postalserver/postal/compare/3.3.3...3.3.4) (2024-06-20)
 
 
