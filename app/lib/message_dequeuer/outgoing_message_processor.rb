@@ -88,14 +88,29 @@ module MessageDequeuer
       return unless queued_message.server.outbound_spam_threshold
 
       log "inspecting message"
-      queued_message.message.inspect_message
+      result = queued_message.message.inspect_message
       return unless queued_message.message.inspected
+
+      # Check if email validation failed with Truemail
+      if queued_message.server.truemail_enabled? && result.validation_failed
+        log "email validation failed with Truemail, hard failing", validation_message: result.validation_message
+
+        # Add recipient to suppression list for failed email validation
+        queued_message.server.message_db.suppression_list.add(:recipient, queued_message.message.rcpt_to, reason: "Email address validation failed with Truemail: #{result.validation_message}")
+        log "added recipient to suppression list", recipient: queued_message.message.rcpt_to, reason: "Truemail validation failed"
+
+        create_delivery "HardFail",
+                        details: "Email address validation failed: #{result.validation_message}"
+        remove_from_queue
+        stop_processing
+        return
+      end
 
       if queued_message.message.spam_score >= queued_message.server.outbound_spam_threshold
         queued_message.message.update(spam: true)
       end
 
-      log "message inspected successfully", spam: queued_message.message.spam?, spam_score: queued_message.message.spam_score
+      log "message inspected successfully", spam: queued_message.message.spam?, spam_score: queued_message.message.spam_score, threat: queued_message.message.threat
     end
 
     def fail_if_spam

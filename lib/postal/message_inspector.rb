@@ -33,6 +33,10 @@ module Postal
           if Postal::Config.clamav.enabled?
             inspectors << MessageInspectors::Clamav.new(Postal::Config.clamav)
           end
+
+          if Postal::Config.truemail.enabled?
+            inspectors << MessageInspectors::Truemail.new(Postal::Config.truemail)
+          end
         end
       end
 

@@ -490,6 +490,33 @@ module Postal
       end
     end
 
+    group :truemail do
+      boolean :enabled do
+        description "Enable Truemail for email address validation"
+        default false
+      end
+
+      string :host do
+        description "The host of the Truemail API server"
+        default "127.0.0.1"
+      end
+
+      integer :port do
+        description "The port of the Truemail API server"
+        default 9292
+      end
+
+      boolean :ssl do
+        description "Enable SSL for Truemail API connection"
+        default false
+      end
+
+      integer :timeout do
+        description "Request timeout for Truemail API calls (seconds)"
+        default 10
+      end
+    end
+
     group :smtp_client do
       integer :open_timeout do
         description "The open timeout for outgoing SMTP connections"
