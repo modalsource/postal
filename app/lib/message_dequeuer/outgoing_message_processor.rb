@@ -110,7 +110,7 @@ module MessageDequeuer
         queued_message.message.update(spam: true)
       end
 
-      log "message inspected successfully", spam: queued_message.message.spam?, spam_score: queued_message.message.spam_score, threat: queued_message.message.threat, validation_failed: queued_message.message.inspect_message.validation_failed
+      log "message inspected successfully", spam: queued_message.message.spam?, spam_score: queued_message.message.spam_score, threat: queued_message.message.threat
     end
 
     def fail_if_spam
