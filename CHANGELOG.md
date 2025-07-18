@@ -2,6 +2,27 @@
 
 This file contains all the latest changes and updates to Postal.
 
+## [3.5.0](https://github.com/modalsource/postal/compare/3.4.0...3.5.0) (2025-07-18)
+
+
+### Features
+
+* add workflow to sync upstream pull requests automatically ([b52332d](https://github.com/modalsource/postal/commit/b52332d6866f60696449573774183b99e68a1187))
+* add workflow to sync upstream pull requests automatically ([bb3ba2b](https://github.com/modalsource/postal/commit/bb3ba2bd6ae96133b674a0f3d6b43ff96792e0e4))
+* add workflow to sync upstream pull requests automatically ([8feccfc](https://github.com/modalsource/postal/commit/8feccfc7cb8d0d1a6a4a172666497bb6cf55b9c4))
+* add workflow to sync upstream pull requests automatically ([546ee24](https://github.com/modalsource/postal/commit/546ee24c71925200d4b7af8b040b0a4667b6e812))
+* add workflow to sync upstream pull requests automatically ([d9c8644](https://github.com/modalsource/postal/commit/d9c864476b9f0b01385674cd09c56acca3d427e0))
+* add workflow to sync upstream pull requests automatically ([37200ac](https://github.com/modalsource/postal/commit/37200ac8c6c75fe6db3aa7e53fc094121f908eee))
+* add workflow to sync upstream pull requests automatically ([70a8e50](https://github.com/modalsource/postal/commit/70a8e503a3ab548582bc74809406572b4202f6d5))
+* add workflow to sync upstream pull requests automatically ([27cf9f9](https://github.com/modalsource/postal/commit/27cf9f9fb393fd0512317f911bbbf5cab9365746))
+* add workflow to sync upstream pull requests automatically ([fb35547](https://github.com/modalsource/postal/commit/fb355478e86d5280840b1637393e01be07d39d0b))
+* add workflow to sync upstream pull requests automatically ([e74f3e5](https://github.com/modalsource/postal/commit/e74f3e50ce07e64d403d19b620a721e1a5b56f63))
+* add workflow to sync upstream pull requests automatically ([f001870](https://github.com/modalsource/postal/commit/f001870e2033fa49219da29f45f7e4bd66f238e2))
+* add workflow to sync upstream pull requests automatically ([e95e972](https://github.com/modalsource/postal/commit/e95e972eb40c277825bc6ce28d2ca7cd09506573))
+* add workflow to sync upstream pull requests automatically ([265d425](https://github.com/modalsource/postal/commit/265d425f358fcb89c6970a972611ca2572a403a9))
+* add workflow to sync upstream pull requests automatically ([e72b918](https://github.com/modalsource/postal/commit/e72b918fea23f1584a92762ee74881b4a39b996b))
+* add workflow to sync upstream pull requests automatically ([2b4e9f0](https://github.com/modalsource/postal/commit/2b4e9f0ee45fe296b9ee627d97069f4a45098857))
+
 ## [3.4.0](https://github.com/modalsource/postal/compare/3.3.4...3.4.0) (2025-07-17)
 
 
