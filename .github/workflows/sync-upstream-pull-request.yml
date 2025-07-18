@@ -75,13 +75,7 @@ jobs:
             # Crea la PR nel fork
             gh pr create \
               --title "[Upstream PR #$pr_number] $pr_title" \
-              --body "**Sincronizzata dalla PR upstream:** https://github.com/$UPSTREAM_OWNER/$UPSTREAM_REPO/pull/$pr_number
-
-**Autore originale:** @$pr_author
-
----
-
-$pr_body" \
+              --body "**Sincronizzata dalla PR upstream:** https://github.com/$UPSTREAM_OWNER/$UPSTREAM_REPO/pull/$pr_number\n**Autore originale:** @$pr_author\n\n\n---\n\n$pr_body" \
               --head "$fork_branch" \
               --base "$pr_base" || echo "Errore nella creazione della PR per #$pr_number"
             done
