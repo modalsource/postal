@@ -5,23 +5,59 @@ import tempfile
 import shutil
 from github import Github
 from github.GithubException import GithubException
+import time
 
-def run_git_command(command, cwd=None):
+def run_git_command(command, cwd=None, timeout=300):
     """Esegue un comando git e gestisce gli errori"""
     try:
+        print(f"    🔧 Eseguendo: {command}")
         result = subprocess.run(
             command,
             shell=True,
             cwd=cwd,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=timeout
         )
+        if result.stdout:
+            print(f"    📤 Output: {result.stdout[:200]}...")
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"Errore nell'esecuzione del comando git: {command}")
-        print(f"Errore: {e.stderr}")
+        print(f"    ❌ Errore nell'esecuzione del comando git: {command}")
+        print(f"    📝 Stderr: {e.stderr}")
+        print(f"    📝 Stdout: {e.stdout}")
+        print(f"    📝 Return code: {e.returncode}")
         return None
+    except subprocess.TimeoutExpired:
+        print(f"    ⏰ Timeout nell'esecuzione del comando: {command}")
+        return None
+
+def setup_git_config(repo_dir):
+    """Configura git per evitare errori di configurazione"""
+    commands = [
+        "git config user.email 'action@github.com'",
+        "git config user.name 'GitHub Action'",
+        "git config --global credential.helper store",
+        "git config --global http.sslverify true"
+    ]
+
+    for cmd in commands:
+        run_git_command(cmd, cwd=repo_dir)
+
+def get_clone_url(pr, gh_token):
+    """Genera l'URL di clone appropriato basato sul tipo di repository"""
+    repo = pr.head.repo
+
+    # Se il repository è lo stesso dell'upstream, usa l'URL pubblico
+    if repo.full_name == pr.base.repo.full_name:
+        return repo.clone_url
+
+    # Per repository privati o fork, usa l'autenticazione
+    if repo.private or repo.fork:
+        return f"https://{gh_token}@github.com/{repo.full_name}.git"
+
+    return repo.clone_url
 
 def check_branch_exists_in_fork(fork, branch_name):
     """Verifica se un branch esiste già nel fork"""
@@ -30,6 +66,53 @@ def check_branch_exists_in_fork(fork, branch_name):
         return True
     except GithubException:
         return False
+
+def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
+    """Clona il repository e configura i remote"""
+
+    # Step 1: Clone del repository
+    print(f"  📥 Clonando da: {clone_url.replace(gh_token, '***') if gh_token in clone_url else clone_url}")
+
+    clone_command = f"git clone --depth=1 --single-branch --branch {branch_name} {clone_url} {repo_dir}"
+    if not run_git_command(clone_command, timeout=180):
+        # Fallback: clone completo e poi checkout
+        print(f"  🔄 Tentativo fallback con clone completo...")
+        clone_command = f"git clone {clone_url} {repo_dir}"
+        if not run_git_command(clone_command, timeout=300):
+            return False
+
+        # Checkout del branch
+        if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
+            # Prova a fare fetch del branch se non esiste localmente
+            if not run_git_command(f"git fetch origin {branch_name}:{branch_name}", cwd=repo_dir):
+                return False
+            if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
+                return False
+
+    # Step 2: Configura git
+    setup_git_config(repo_dir)
+
+    # Step 3: Aggiungi remote del fork
+    print(f"  🔗 Aggiungendo remote fork...")
+    if not run_git_command(f"git remote add fork {fork_url}", cwd=repo_dir):
+        return False
+
+    # Step 4: Verifica che siamo sul branch corretto
+    current_branch = run_git_command("git branch --show-current", cwd=repo_dir)
+    if current_branch != branch_name:
+        print(f"  ⚠️  Branch corrente ({current_branch}) diverso da quello richiesto ({branch_name})")
+        return False
+
+    # Step 5: Push del branch al fork
+    print(f"  📤 Push del branch {branch_name} al fork...")
+    push_command = f"git push fork {branch_name}"
+    if not run_git_command(push_command, cwd=repo_dir, timeout=180):
+        # Prova force push se c'è un conflitto
+        print(f"  🔄 Tentativo con force push...")
+        if not run_git_command(f"git push --force fork {branch_name}", cwd=repo_dir, timeout=180):
+            return False
+
+    return True
 
 def main():
     # Verifica variabili di ambiente
@@ -43,35 +126,49 @@ def main():
     upstream_repo = os.environ["UPSTREAM_REPO"]
     fork_repo = os.environ["FORK_REPO"]
 
+    print(f"🔑 Token presente: {'✅' if gh_token else '❌'}")
+    print(f"📋 Upstream: {upstream_repo}")
+    print(f"📋 Fork: {fork_repo}")
+
     # Inizializza GitHub client
     try:
         g = Github(gh_token)
+
+        # Test di autenticazione
+        user = g.get_user()
+        print(f"👤 Autenticato come: {user.login}")
+
         upstream = g.get_repo(upstream_repo)
         fork = g.get_repo(fork_repo)
+
+        print(f"📊 Upstream: {upstream.full_name} (privato: {upstream.private})")
+        print(f"📊 Fork: {fork.full_name} (privato: {fork.private})")
+
     except GithubException as e:
-        print(f"Errore nell'autenticazione o accesso ai repository: {e}")
+        print(f"❌ Errore nell'autenticazione o accesso ai repository: {e}")
         sys.exit(1)
 
     # Ottieni il branch di default del fork
     try:
         default_branch = fork.default_branch
-        print(f"Branch di default del fork: {default_branch}")
+        print(f"🌳 Branch di default del fork: {default_branch}")
     except GithubException as e:
-        print(f"Errore nell'ottenere il branch di default: {e}")
+        print(f"⚠️  Errore nell'ottenere il branch di default: {e}")
         default_branch = "main"  # fallback
 
-    print(f"Replicando PR da {upstream_repo} a {fork_repo}")
+    print(f"\n🔄 Replicando PR da {upstream_repo} a {fork_repo}")
 
     # Trova PRs aperte nell'upstream
     try:
         upstream_prs = list(upstream.get_pulls(state="open"))
-        print(f"Trovate {len(upstream_prs)} PR aperte nell'upstream")
+        print(f"📋 Trovate {len(upstream_prs)} PR aperte nell'upstream")
     except GithubException as e:
-        print(f"Errore nell'ottenere le PR dell'upstream: {e}")
+        print(f"❌ Errore nell'ottenere le PR dell'upstream: {e}")
         sys.exit(1)
 
     replicated_count = 0
     skipped_count = 0
+    error_count = 0
 
     for pr in upstream_prs:
         try:
@@ -79,7 +176,10 @@ def main():
             pr_title = pr.title
             pr_author = pr.user.login
 
-            print(f"\nProcessando PR: {pr_title} (branch: {branch_name})")
+            print(f"\n🔍 Processando PR #{pr.number}: {pr_title}")
+            print(f"    📝 Branch: {branch_name}")
+            print(f"    👤 Autore: {pr_author}")
+            print(f"    🏠 Repository: {pr.head.repo.full_name}")
 
             # Controlla se la PR è già stata replicata nel fork
             existing_prs = [p for p in fork.get_pulls(state="all")
@@ -101,33 +201,16 @@ def main():
             with tempfile.TemporaryDirectory() as temp_dir:
                 repo_dir = os.path.join(temp_dir, "repo")
 
-                # URL autenticato per il clone
-                if pr.head.repo.private:
-                    clone_url = f"https://{gh_token}@github.com/{pr.head.repo.full_name}.git"
-                else:
-                    clone_url = pr.head.repo.clone_url
+                # URL per il clone
+                clone_url = get_clone_url(pr, gh_token)
 
-                print(f"  📥 Clonando repository...")
-                if not run_git_command(f"git clone {clone_url} {repo_dir}"):
-                    print(f"  ❌ Errore nel clone del repository {clone_url}")
-                    continue
-
-                # Checkout del branch della PR
-                print(f"  🔄 Checkout del branch {branch_name}...")
-                if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
-                    print(f"  ❌ Errore nel checkout del branch {branch_name}")
-                    continue
-
-                # Aggiungi remote del fork con autenticazione
+                # URL del fork con autenticazione
                 fork_url = f"https://{gh_token}@github.com/{fork_repo}.git"
-                if not run_git_command(f"git remote add fork {fork_url}", cwd=repo_dir):
-                    print(f"  ❌ Errore nell'aggiungere il remote del fork")
-                    continue
 
-                # Push del branch al fork
-                print(f"  📤 Push del branch al fork...")
-                if not run_git_command(f"git push fork {branch_name}", cwd=repo_dir):
-                    print(f"  ❌ Errore nel push del branch al fork")
+                # Clona e configura il repository
+                if not clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
+                    print(f"  ❌ Errore nella configurazione del repository")
+                    error_count += 1
                     continue
 
             # Crea una nuova PR nel fork
@@ -136,6 +219,7 @@ def main():
 
 **Autore originale:** @{pr_author}
 **Branch originale:** `{branch_name}`
+**Repository originale:** {pr.head.repo.full_name}
 
 ---
 
@@ -155,25 +239,32 @@ def main():
                 try:
                     labels = ["replica", "upstream"]
                     new_pr.add_to_labels(*labels)
-                except GithubException:
-                    # Ignora errori di etichette (potrebbero non esistere)
-                    pass
+                    print(f"  🏷️  Etichette aggiunte")
+                except GithubException as e:
+                    print(f"  ⚠️  Impossibile aggiungere etichette: {e}")
 
             except GithubException as e:
                 print(f"  ❌ Errore nella creazione della PR: {e}")
+                error_count += 1
                 continue
 
         except GithubException as e:
-            print(f"  ❌ Errore nel processare la PR {pr.number}: {e}")
+            print(f"  ❌ Errore GitHub nel processare la PR {pr.number}: {e}")
+            error_count += 1
             continue
         except Exception as e:
             print(f"  ❌ Errore generico nel processare la PR {pr.number}: {e}")
+            error_count += 1
             continue
 
-    print(f"\n📊 Riepilogo:")
+    print(f"\n📊 Riepilogo finale:")
     print(f"  ✅ PR replicate: {replicated_count}")
     print(f"  ⏭️  PR saltate: {skipped_count}")
+    print(f"  ❌ Errori: {error_count}")
     print(f"  📝 Totale processate: {len(upstream_prs)}")
+
+    if error_count > 0:
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
