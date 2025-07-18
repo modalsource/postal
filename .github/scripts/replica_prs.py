@@ -10,7 +10,10 @@ import time
 def run_git_command(command, cwd=None, timeout=300):
     """Esegue un comando git e gestisce gli errori"""
     try:
-        print(f"    🔧 Eseguendo: {command}")
+        # Masking del token per il logging
+        safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
+        print(f"    🔧 Eseguendo: {safe_command}")
+
         result = subprocess.run(
             command,
             shell=True,
@@ -21,16 +24,22 @@ def run_git_command(command, cwd=None, timeout=300):
             timeout=timeout
         )
         if result.stdout:
-            print(f"    📤 Output: {result.stdout[:200]}...")
+            # Tronca output molto lungo
+            output_preview = result.stdout.strip()
+            if len(output_preview) > 200:
+                output_preview = output_preview[:200] + "..."
+            print(f"    📤 Output: {output_preview}")
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"    ❌ Errore nell'esecuzione del comando git: {command}")
+        safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
+        print(f"    ❌ Errore nell'esecuzione del comando git: {safe_command}")
         print(f"    📝 Stderr: {e.stderr}")
         print(f"    📝 Stdout: {e.stdout}")
         print(f"    📝 Return code: {e.returncode}")
         return None
     except subprocess.TimeoutExpired:
-        print(f"    ⏰ Timeout nell'esecuzione del comando: {command}")
+        safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
+        print(f"    ⏰ Timeout nell'esecuzione del comando: {safe_command}")
         return None
 
 def setup_git_config(repo_dir):
@@ -70,44 +79,71 @@ def check_branch_exists_in_fork(fork, branch_name):
 def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
     """Clona il repository e configura i remote"""
 
-    # Step 1: Clone del repository
+    # Step 1: Clone del repository con multiple strategie
     print(f"  📥 Clonando da: {clone_url.replace(gh_token, '***') if gh_token in clone_url else clone_url}")
 
+    # Strategia 1: Clone shallow con branch specifico
     clone_command = f"git clone --depth=1 --single-branch --branch {branch_name} {clone_url} {repo_dir}"
-    if not run_git_command(clone_command, timeout=180):
-        # Fallback: rimuovi directory parziale e prova clone completo
-        print(f"  🔄 Tentativo fallback con clone completo...")
+    success = run_git_command(clone_command, timeout=180)
 
-        # Rimuovi directory se esiste
+    if not success:
+        print(f"  🔄 Fallback 1: Clone completo con checkout...")
+        # Rimuovi directory se esiste parzialmente
         if os.path.exists(repo_dir):
             shutil.rmtree(repo_dir)
 
-        # Clone completo
+        # Strategia 2: Clone completo poi checkout
         clone_command = f"git clone {clone_url} {repo_dir}"
         if not run_git_command(clone_command, timeout=300):
-            return False
+            print(f"  🔄 Fallback 2: Tentativo senza autenticazione...")
 
-        # Checkout del branch
-        if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
-            # Prova a fare fetch del branch se non esiste localmente
-            if not run_git_command(f"git fetch origin {branch_name}:{branch_name}", cwd=repo_dir):
-                return False
+            # Strategia 3: Se il repo è pubblico, prova senza token
+            if clone_url.startswith("https://") and "@github.com" in clone_url:
+                public_url = clone_url.split("@github.com/")[1]
+                public_url = f"https://github.com/{public_url}"
+                print(f"  🌐 Tentativo con URL pubblico: {public_url}")
+
+                if os.path.exists(repo_dir):
+                    shutil.rmtree(repo_dir)
+
+                if not run_git_command(f"git clone {public_url} {repo_dir}", timeout=300):
+                    print(f"  ❌ Tutti i tentativi di clone falliti")
+                    return False
+
+        # Checkout del branch se necessario
+        current_branch = run_git_command("git branch --show-current", cwd=repo_dir)
+        if current_branch != branch_name:
+            print(f"  🔄 Checkout branch {branch_name}...")
             if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
-                return False
+                # Prova fetch + checkout
+                if not run_git_command(f"git fetch origin {branch_name}:{branch_name}", cwd=repo_dir):
+                    # Ultima chance: fetch all branches e poi checkout
+                    print(f"  🔄 Fetch completo dei branch...")
+                    run_git_command("git fetch --all", cwd=repo_dir)
+
+                if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
+                    print(f"  ❌ Impossibile fare checkout del branch {branch_name}")
+                    return False
 
     # Step 2: Configura git
     setup_git_config(repo_dir)
 
-    # Step 3: Aggiungi remote del fork
-    print(f"  🔗 Aggiungendo remote fork...")
-    if not run_git_command(f"git remote add fork {fork_url}", cwd=repo_dir):
-        return False
-
-    # Step 4: Verifica che siamo sul branch corretto
+    # Step 3: Verifica stato del repository
+    print(f"  🔍 Verifica stato repository...")
     current_branch = run_git_command("git branch --show-current", cwd=repo_dir)
     if current_branch != branch_name:
         print(f"  ⚠️  Branch corrente ({current_branch}) diverso da quello richiesto ({branch_name})")
         return False
+
+    # Step 4: Aggiungi remote del fork
+    print(f"  🔗 Aggiungendo remote fork...")
+    # Controlla se remote fork esiste già
+    remotes = run_git_command("git remote -v", cwd=repo_dir)
+    if "fork" not in remotes:
+        if not run_git_command(f"git remote add fork {fork_url}", cwd=repo_dir):
+            print(f"  ⚠️  Errore nell'aggiungere remote fork, continuando...")
+    else:
+        print(f"  ℹ️  Remote fork già presente")
 
     # Step 5: Push del branch al fork
     print(f"  📤 Push del branch {branch_name} al fork...")
@@ -116,8 +152,10 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
         # Prova force push se c'è un conflitto
         print(f"  🔄 Tentativo con force push...")
         if not run_git_command(f"git push --force fork {branch_name}", cwd=repo_dir, timeout=180):
+            print(f"  ❌ Push al fork fallito")
             return False
 
+    print(f"  ✅ Repository configurato e push completato")
     return True
 
 def should_skip_pr(pr_title):
