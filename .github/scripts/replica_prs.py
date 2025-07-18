@@ -15,6 +15,7 @@ def run_git_command(command, cwd=None, timeout=300):
         # Masking del token per il logging
         safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
         print(f"    🔧 Eseguendo: {safe_command}")
+        print(f"    📁 Directory: {cwd or 'corrente'}")
 
         # Aggiungi diagnostica ambiente prima del comando git
         if "git clone" in command:
@@ -34,9 +35,16 @@ def run_git_command(command, cwd=None, timeout=300):
                 connectivity = subprocess.run("curl -s -o /dev/null -w '%{http_code}' https://github.com", shell=True, capture_output=True, text=True, timeout=15)
                 print(f"      - GitHub connectivity: {connectivity.stdout.strip() if connectivity.returncode == 0 else 'Errore'}")
 
+                # Verifica spazio disco disponibile
+                if cwd and os.path.exists(os.path.dirname(cwd)):
+                    disk_usage = subprocess.run(f"df -h {os.path.dirname(cwd)}", shell=True, capture_output=True, text=True, timeout=5)
+                    if disk_usage.returncode == 0:
+                        print(f"      - Spazio disco: {disk_usage.stdout.strip().split()[1] if len(disk_usage.stdout.strip().split()) > 10 else 'N/A'}")
+
             except Exception as diag_e:
                 print(f"      - Errore diagnostica: {diag_e}")
 
+        start_time = time.time()
         result = subprocess.run(
             command,
             shell=True,
@@ -47,37 +55,89 @@ def run_git_command(command, cwd=None, timeout=300):
             timeout=timeout,
             env=dict(os.environ, GIT_TERMINAL_PROMPT="0")  # Disabilita prompt interattivi
         )
+        execution_time = time.time() - start_time
+
+        print(f"    ⏱️  Tempo esecuzione: {execution_time:.2f}s")
+        print(f"    ✅ Return code: {result.returncode}")
+
         if result.stdout:
-            # Tronca output molto lungo
-            output_preview = result.stdout.strip()
-            if len(output_preview) > 200:
-                output_preview = output_preview[:200] + "..."
-            print(f"    📤 Output: {output_preview}")
+            print(f"    📤 STDOUT completo:")
+            # Mostra tutto l'output, non troncato
+            for line in result.stdout.strip().split('\n'):
+                print(f"       {line}")
+        else:
+            print(f"    📤 STDOUT: (vuoto)")
+
+        if result.stderr:
+            print(f"    📝 STDERR:")
+            for line in result.stderr.strip().split('\n'):
+                print(f"       {line}")
+        else:
+            print(f"    📝 STDERR: (vuoto)")
+
         return result.stdout.strip()
+
     except subprocess.CalledProcessError as e:
+        execution_time = time.time() - start_time if 'start_time' in locals() else 0
         safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
-        print(f"    ❌ Errore nell'esecuzione del comando git: {safe_command}")
-        print(f"    📝 Stderr: {e.stderr}")
-        print(f"    📝 Stdout: {e.stdout}")
-        print(f"    📝 Return code: {e.returncode}")
+
+        print(f"    ❌ COMANDO FALLITO: {safe_command}")
+        print(f"    📁 Directory: {cwd or 'corrente'}")
+        print(f"    ⏱️  Tempo esecuzione: {execution_time:.2f}s")
+        print(f"    🔢 Return code: {e.returncode}")
+
+        if e.stdout:
+            print(f"    📤 STDOUT completo:")
+            for line in e.stdout.strip().split('\n'):
+                print(f"       {line}")
+        else:
+            print(f"    📤 STDOUT: (vuoto)")
+
+        if e.stderr:
+            print(f"    📝 STDERR completo:")
+            for line in e.stderr.strip().split('\n'):
+                print(f"       {line}")
+        else:
+            print(f"    📝 STDERR: (vuoto)")
 
         # Analisi specifica degli errori comuni
         if e.stderr:
-            if "fatal: could not read" in e.stderr.lower():
+            error_lower = e.stderr.lower()
+            if "fatal: could not read" in error_lower:
                 print(f"    💡 Suggerimento: Problema di autenticazione o repository non accessibile")
-            elif "timeout" in e.stderr.lower():
+            elif "timeout" in error_lower or "timed out" in error_lower:
                 print(f"    💡 Suggerimento: Timeout di rete, prova con timeout maggiore")
-            elif "permission denied" in e.stderr.lower():
+            elif "permission denied" in error_lower:
                 print(f"    💡 Suggerimento: Problema di permessi sul token o repository")
-            elif "repository not found" in e.stderr.lower():
+            elif "repository not found" in error_lower:
                 print(f"    💡 Suggerimento: Repository non trovato o non accessibile")
+            elif "authentication failed" in error_lower:
+                print(f"    💡 Suggerimento: Token non valido o scaduto")
+            elif "network is unreachable" in error_lower:
+                print(f"    💡 Suggerimento: Problema di connettività di rete")
+            elif "name resolution" in error_lower:
+                print(f"    💡 Suggerimento: Problema di risoluzione DNS")
 
         return None
-    except subprocess.TimeoutExpired:
+
+    except subprocess.TimeoutExpired as e:
         safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
-        print(f"    ⏰ Timeout nell'esecuzione del comando: {safe_command}")
-        return None
+        print(f"    ⏰ TIMEOUT: {safe_command}")
+        print(f"    📁 Directory: {cwd or 'corrente'}")
+        print(f"    ⏱️  Timeout dopo: {timeout}s")
 
+        if hasattr(e, 'stdout') and e.stdout:
+            print(f"    📤 STDOUT parziale:")
+            for line in e.stdout.strip().split('\n'):
+                print(f"       {line}")
+
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"    📝 STDERR parziale:")
+            for line in e.stderr.strip().split('\n'):
+                print(f"       {line}")
+
+        print(f"    💡 Suggerimento: Comando troppo lento, considera di aumentare il timeout o verificare la connessione")
+        return None
 def setup_git_config(repo_dir):
     """Configura git per evitare errori di configurazione"""
     commands = [
@@ -289,25 +349,52 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
             print(f"  ❌ Impossibile creare commit iniziale")
             return False
 
-    print(f"  🔗 Aggiungendo remote fork...")
+    print(f"  🔗 Configurando remote fork...")
     # Controlla se remote fork esiste già
     remotes = run_git_command("git remote -v", cwd=repo_dir)
-    if remotes and "fork" not in remotes:
+    if remotes:
+        if "fork" in remotes:
+            print(f"  ℹ️  Remote fork già presente, rimuovendo per riconfigurare...")
+            run_git_command("git remote remove fork", cwd=repo_dir)
+
+        # Aggiungi sempre il remote fork
         if not run_git_command(f"git remote add fork '{fork_url}'", cwd=repo_dir):
-            print(f"  ⚠️  Errore nell'aggiungere remote fork, continuando...")
+            print(f"  ⚠️  Errore nell'aggiungere remote fork")
+            # Prova approccio alternativo: usa il remote origin
+            print(f"  🔄 Usando remote origin come fallback...")
+            if not run_git_command(f"git remote set-url origin '{fork_url}'", cwd=repo_dir):
+                print(f"  ❌ Impossibile configurare remote")
+                return False
+            fork_remote = "origin"
+        else:
+            fork_remote = "fork"
     else:
-        print(f"  ℹ️  Remote fork già presente o primo remote")
+        # Se non ci sono remote (repository inizializzato da archivio)
+        print(f"  🔧 Aggiungendo primo remote...")
+        if not run_git_command(f"git remote add origin '{fork_url}'", cwd=repo_dir):
+            print(f"  ❌ Impossibile aggiungere remote origin")
+            return False
+        fork_remote = "origin"
+
+    # Verifica remote configurati
+    final_remotes = run_git_command("git remote -v", cwd=repo_dir)
+    print(f"  📋 Remote configurati: {final_remotes}")
 
     # Step 5: Push del branch al fork
     print(f"  📤 Push del branch {branch_name} al fork...")
     current_branch = run_git_command("git branch --show-current", cwd=repo_dir) or "main"
-    push_command = f"git push fork {current_branch}:{branch_name}"
+
+    # Prova prima con il nome del branch corretto
+    push_command = f"git push {fork_remote} {current_branch}:{branch_name}"
     if not run_git_command(push_command, cwd=repo_dir, timeout=180):
         # Prova force push se c'è un conflitto
         print(f"  🔄 Tentativo con force push...")
-        if not run_git_command(f"git push --force fork {current_branch}:{branch_name}", cwd=repo_dir, timeout=180):
-            print(f"  ❌ Push al fork fallito")
-            return False
+        if not run_git_command(f"git push --force {fork_remote} {current_branch}:{branch_name}", cwd=repo_dir, timeout=180):
+            # Ultimo tentativo: crea il branch e poi push
+            print(f"  🔄 Tentativo creando branch remoto...")
+            if not run_git_command(f"git push --set-upstream {fork_remote} {current_branch}:{branch_name}", cwd=repo_dir, timeout=180):
+                print(f"  ❌ Push al fork fallito")
+                return False
 
     print(f"  ✅ Repository configurato e push completato")
     return True
