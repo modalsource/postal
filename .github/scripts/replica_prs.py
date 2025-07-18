@@ -109,7 +109,7 @@ def main():
 
                 print(f"  📥 Clonando repository...")
                 if not run_git_command(f"git clone {clone_url} {repo_dir}"):
-                    print(f"  ❌ Errore nel clone del repository")
+                    print(f"  ❌ Errore nel clone del repository {clone_url}")
                     continue
 
                 # Checkout del branch della PR
