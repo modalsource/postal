@@ -75,8 +75,14 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
 
     clone_command = f"git clone --depth=1 --single-branch --branch {branch_name} {clone_url} {repo_dir}"
     if not run_git_command(clone_command, timeout=180):
-        # Fallback: clone completo e poi checkout
+        # Fallback: rimuovi directory parziale e prova clone completo
         print(f"  🔄 Tentativo fallback con clone completo...")
+
+        # Rimuovi directory se esiste
+        if os.path.exists(repo_dir):
+            shutil.rmtree(repo_dir)
+
+        # Clone completo
         clone_command = f"git clone {clone_url} {repo_dir}"
         if not run_git_command(clone_command, timeout=300):
             return False
@@ -113,6 +119,17 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
             return False
 
     return True
+
+def should_skip_pr(pr_title):
+    """Determina se una PR deve essere saltata basandosi sul titolo"""
+    skip_prefixes = ["bump", "chore", "deps:", "dependabot", "ci:", "build:", "test:", "docs:", "style:", "refactor:"]
+    title_lower = pr_title.lower().strip()
+
+    for prefix in skip_prefixes:
+        if title_lower.startswith(prefix):
+            return True, f"PR di manutenzione ({prefix.rstrip(':')})"
+
+    return False, None
 
 def main():
     # Verifica variabili di ambiente
@@ -198,6 +215,13 @@ def main():
             print(f"    📝 Branch: {branch_name}")
             print(f"    👤 Autore: {pr_author}")
             print(f"    🏠 Repository: {pr.head.repo.full_name}")
+
+            # Verifica se la PR deve essere saltata
+            should_skip, skip_reason = should_skip_pr(pr_title)
+            if should_skip:
+                print(f"  ⏭️  Saltando PR: {skip_reason}")
+                skipped_count += 1
+                continue
 
             # Controlla se la PR è già stata replicata nel fork
             try:
