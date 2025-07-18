@@ -76,14 +76,41 @@ def check_branch_exists_in_fork(fork, branch_name):
     except GithubException:
         return False
 
-def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
+def verify_repository_access(repo, gh_token):
+    """Verifica l'accesso al repository e fornisce informazioni diagnostiche"""
+    try:
+        print(f"  🔍 Verificando accesso al repository: {repo.full_name}")
+        print(f"    - Privato: {repo.private}")
+        print(f"    - Fork: {repo.fork}")
+        print(f"    - Proprietario: {repo.owner.login}")
+        print(f"    - URL clone: {repo.clone_url}")
+        print(f"    - URL SSH: {repo.ssh_url}")
+
+        # Verifica permessi
+        permissions = repo.permissions
+        print(f"    - Permessi: admin={permissions.admin}, push={permissions.push}, pull={permissions.pull}")
+
+        return True
+    except GithubException as e:
+        print(f"  ❌ Errore verifica repository: {e}")
+        print(f"    - Status: {e.status}")
+        print(f"    - Data: {e.data}")
+        return False
+
+def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, pr):
     """Clona il repository e configura i remote"""
+
+    # Step 0: Verifica accesso al repository sorgente
+    print(f"  🔍 Diagnostica repository sorgente...")
+    if not verify_repository_access(pr.head.repo, gh_token):
+        print(f"  ❌ Impossibile accedere al repository sorgente")
+        return False
 
     # Step 1: Clone del repository con multiple strategie
     print(f"  📥 Clonando da: {clone_url.replace(gh_token, '***') if gh_token in clone_url else clone_url}")
 
     # Strategia 1: Clone shallow con branch specifico
-    clone_command = f"git clone --depth=1 --single-branch --branch {branch_name} {clone_url} {repo_dir}"
+    clone_command = f"git clone --depth=1 --single-branch --branch {branch_name} '{clone_url}' '{repo_dir}'"
     success = run_git_command(clone_command, timeout=180)
 
     if not success:
@@ -93,7 +120,7 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
             shutil.rmtree(repo_dir)
 
         # Strategia 2: Clone completo poi checkout
-        clone_command = f"git clone {clone_url} {repo_dir}"
+        clone_command = f"git clone '{clone_url}' '{repo_dir}'"
         if not run_git_command(clone_command, timeout=300):
             print(f"  🔄 Fallback 2: Tentativo senza autenticazione...")
 
@@ -106,7 +133,28 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
                 if os.path.exists(repo_dir):
                     shutil.rmtree(repo_dir)
 
-                if not run_git_command(f"git clone {public_url} {repo_dir}", timeout=300):
+                if not run_git_command(f"git clone '{public_url}' '{repo_dir}'", timeout=300):
+                    print(f"  🔄 Fallback 3: Verifica esistenza repository...")
+
+                    # Strategia 4: Verifica se il repository esiste via API
+                    try:
+                        import requests
+                        api_url = f"https://api.github.com/repos/{pr.head.repo.full_name}"
+                        headers = {"Authorization": f"token {gh_token}"}
+                        response = requests.get(api_url, headers=headers, timeout=30)
+
+                        if response.status_code == 404:
+                            print(f"  ❌ Repository {pr.head.repo.full_name} non trovato o non accessibile")
+                            return False
+                        elif response.status_code == 403:
+                            print(f"  ❌ Accesso negato al repository {pr.head.repo.full_name}")
+                            return False
+                        else:
+                            print(f"  ℹ️  Repository esiste (status: {response.status_code}), ma clone fallito")
+
+                    except Exception as e:
+                        print(f"  ⚠️  Errore nella verifica API: {e}")
+
                     print(f"  ❌ Tutti i tentativi di clone falliti")
                     return False
 
@@ -116,14 +164,21 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
             print(f"  🔄 Checkout branch {branch_name}...")
             if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
                 # Prova fetch + checkout
+                print(f"  🔄 Fetch del branch {branch_name}...")
                 if not run_git_command(f"git fetch origin {branch_name}:{branch_name}", cwd=repo_dir):
                     # Ultima chance: fetch all branches e poi checkout
                     print(f"  🔄 Fetch completo dei branch...")
                     run_git_command("git fetch --all", cwd=repo_dir)
 
+                # Lista tutti i branch disponibili per debug
+                branches = run_git_command("git branch -a", cwd=repo_dir)
+                print(f"  📋 Branch disponibili: {branches}")
+
                 if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
-                    print(f"  ❌ Impossibile fare checkout del branch {branch_name}")
-                    return False
+                    # Prova con origin/ prefix
+                    if not run_git_command(f"git checkout origin/{branch_name}", cwd=repo_dir):
+                        print(f"  ❌ Impossibile fare checkout del branch {branch_name}")
+                        return False
 
     # Step 2: Configura git
     setup_git_config(repo_dir)
@@ -133,25 +188,27 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
     current_branch = run_git_command("git branch --show-current", cwd=repo_dir)
     if current_branch != branch_name:
         print(f"  ⚠️  Branch corrente ({current_branch}) diverso da quello richiesto ({branch_name})")
-        return False
+        # Non fallire se siamo su un branch correlato (es. origin/branch)
+        if f"origin/{branch_name}" not in current_branch and branch_name not in current_branch:
+            return False
 
     # Step 4: Aggiungi remote del fork
     print(f"  🔗 Aggiungendo remote fork...")
     # Controlla se remote fork esiste già
     remotes = run_git_command("git remote -v", cwd=repo_dir)
-    if "fork" not in remotes:
-        if not run_git_command(f"git remote add fork {fork_url}", cwd=repo_dir):
+    if remotes and "fork" not in remotes:
+        if not run_git_command(f"git remote add fork '{fork_url}'", cwd=repo_dir):
             print(f"  ⚠️  Errore nell'aggiungere remote fork, continuando...")
     else:
-        print(f"  ℹ️  Remote fork già presente")
+        print(f"  ℹ️  Remote fork già presente o comando remotes fallito")
 
     # Step 5: Push del branch al fork
     print(f"  📤 Push del branch {branch_name} al fork...")
-    push_command = f"git push fork {branch_name}"
+    push_command = f"git push fork {current_branch}:{branch_name}"
     if not run_git_command(push_command, cwd=repo_dir, timeout=180):
         # Prova force push se c'è un conflitto
         print(f"  🔄 Tentativo con force push...")
-        if not run_git_command(f"git push --force fork {branch_name}", cwd=repo_dir, timeout=180):
+        if not run_git_command(f"git push --force fork {current_branch}:{branch_name}", cwd=repo_dir, timeout=180):
             print(f"  ❌ Push al fork fallito")
             return False
 
@@ -292,7 +349,7 @@ def main():
                 fork_url = f"https://{gh_token}@github.com/{fork_repo}.git"
 
                 # Clona e configura il repository
-                if not clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token):
+                if not clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, pr):
                     print(f"  ❌ Errore nella configurazione del repository")
                     error_count += 1
                     continue
