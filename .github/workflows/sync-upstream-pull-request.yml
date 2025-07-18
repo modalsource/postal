@@ -1,10 +1,8 @@
-name: Sync Upstream Pull Requests
-
+name: 'Sync Upstream Pull Requests'
 on:
   schedule:
-    # Esegui ogni ora per controllare nuove PR
     - cron: '0 * * * *'
-  workflow_dispatch: # Permette di eseguire manualmente
+  workflow_dispatch:
 permissions:
   issues: write
   pull-requests: write
