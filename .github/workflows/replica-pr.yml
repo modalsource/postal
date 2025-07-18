@@ -1,11 +1,14 @@
 name: "Replica Upstream Pull Requests"
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 */6 * * *'  # Ogni 6 ore invece di ogni ora
   workflow_dispatch:
+
 permissions:
+  contents: read
   issues: write
   pull-requests: write
+
 jobs:
   replicate-prs:
     runs-on: ubuntu-latest
@@ -23,7 +26,7 @@ jobs:
 
       - name: Replica PRs
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}  # Usa PAT invece di GITHUB_TOKEN
           UPSTREAM_REPO: postalserver/postal
-          FORK_REPO: modalsource/postal
+          FORK_REPO: ${{ github.repository }}  # Usa automaticamente il repository corrente
         run: python .github/scripts/replica_prs.py

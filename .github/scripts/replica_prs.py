@@ -134,18 +134,32 @@ def main():
     try:
         g = Github(gh_token)
 
-        # Test di autenticazione
-        user = g.get_user()
-        print(f"👤 Autenticato come: {user.login}")
+        # Test di autenticazione (opzionale - fallback se fallisce)
+        try:
+            user = g.get_user()
+            print(f"👤 Autenticato come: {user.login}")
+        except GithubException as e:
+            print(f"⚠️  Impossibile ottenere info utente (permessi limitati): {e.status}")
+            print(f"📝 Continuando comunque...")
 
         upstream = g.get_repo(upstream_repo)
         fork = g.get_repo(fork_repo)
 
-        print(f"📊 Upstream: {upstream.full_name} (privato: {upstream.private})")
-        print(f"📊 Fork: {fork.full_name} (privato: {fork.private})")
+        # Testa l'accesso ai repository
+        try:
+            print(f"📊 Upstream: {upstream.full_name} (privato: {upstream.private})")
+        except GithubException as e:
+            print(f"❌ Errore accesso upstream repository: {e}")
+            sys.exit(1)
+
+        try:
+            print(f"📊 Fork: {fork.full_name} (privato: {fork.private})")
+        except GithubException as e:
+            print(f"❌ Errore accesso fork repository: {e}")
+            sys.exit(1)
 
     except GithubException as e:
-        print(f"❌ Errore nell'autenticazione o accesso ai repository: {e}")
+        print(f"❌ Errore nell'inizializzazione GitHub client: {e}")
         sys.exit(1)
 
     # Ottieni il branch di default del fork
@@ -166,6 +180,10 @@ def main():
         print(f"❌ Errore nell'ottenere le PR dell'upstream: {e}")
         sys.exit(1)
 
+    if len(upstream_prs) == 0:
+        print("ℹ️  Nessuna PR aperta trovata nell'upstream")
+        return
+
     replicated_count = 0
     skipped_count = 0
     error_count = 0
@@ -182,9 +200,13 @@ def main():
             print(f"    🏠 Repository: {pr.head.repo.full_name}")
 
             # Controlla se la PR è già stata replicata nel fork
-            existing_prs = [p for p in fork.get_pulls(state="all")
-                          if p.title.startswith(f"Replica: {pr_title}") or
-                             p.head.ref == branch_name]
+            try:
+                existing_prs = [p for p in fork.get_pulls(state="all")
+                              if p.title.startswith(f"Replica: {pr_title}") or
+                                 p.head.ref == branch_name]
+            except GithubException as e:
+                print(f"  ⚠️  Errore nel controllare PR esistenti: {e}")
+                existing_prs = []
 
             if existing_prs:
                 print(f"  ⏭️  PR già replicata, saltando...")
@@ -237,14 +259,29 @@ def main():
 
                 # Aggiungi etichette se possibile
                 try:
-                    labels = ["replica", "upstream"]
-                    new_pr.add_to_labels(*labels)
-                    print(f"  🏷️  Etichette aggiunte")
+                    # Controlla se le etichette esistono prima di aggiungerle
+                    existing_labels = [label.name for label in fork.get_labels()]
+                    labels_to_add = []
+
+                    if "replica" in existing_labels:
+                        labels_to_add.append("replica")
+                    if "upstream" in existing_labels:
+                        labels_to_add.append("upstream")
+
+                    if labels_to_add:
+                        new_pr.add_to_labels(*labels_to_add)
+                        print(f"  🏷️  Etichette aggiunte: {', '.join(labels_to_add)}")
+                    else:
+                        print(f"  ℹ️  Nessuna etichetta disponibile da aggiungere")
+
                 except GithubException as e:
                     print(f"  ⚠️  Impossibile aggiungere etichette: {e}")
 
             except GithubException as e:
                 print(f"  ❌ Errore nella creazione della PR: {e}")
+                # Se l'errore è di permessi, potrebbe essere utile continuare
+                if e.status == 403:
+                    print(f"  📝 Errore di permessi - verifica il token REPO_ACCESS_TOKEN")
                 error_count += 1
                 continue
 
@@ -263,8 +300,12 @@ def main():
     print(f"  ❌ Errori: {error_count}")
     print(f"  📝 Totale processate: {len(upstream_prs)}")
 
-    if error_count > 0:
+    # Non uscire con errore se ci sono solo alcuni errori
+    if error_count > 0 and replicated_count == 0:
+        print("⚠️  Nessuna PR replicata con successo")
         sys.exit(1)
+    elif error_count > 0:
+        print("⚠️  Alcuni errori ma almeno una PR replicata")
 
 if __name__ == "__main__":
     main()
