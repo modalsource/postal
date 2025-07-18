@@ -409,15 +409,21 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
     print(f"  📤 Push del branch {branch_name} al fork...")
     current_branch = get_git_output("git branch --show-current", cwd=repo_dir) or "main"
 
+    # Crea un nome del branch che includa il repository sorgente per evitare conflitti
+    source_repo_name = pr.head.repo.full_name.replace('/', '-')
+    fork_branch_name = f"{source_repo_name}-{branch_name}"
+
+    print(f"  📝 Branch sul fork: {fork_branch_name}")
+
     # Prova prima con il nome del branch corretto
-    push_command = f"git push {fork_remote} {current_branch}:{branch_name}"
+    push_command = f"git push {fork_remote} {current_branch}:{fork_branch_name}"
     if not run_git_command(push_command, cwd=repo_dir, timeout=180):
         # Prova force push se c'è un conflitto
         print(f"  🔄 Tentativo con force push...")
-        if not run_git_command(f"git push --force {fork_remote} {current_branch}:{branch_name}", cwd=repo_dir, timeout=180):
+        if not run_git_command(f"git push --force {fork_remote} {current_branch}:{fork_branch_name}", cwd=repo_dir, timeout=180):
             # Ultimo tentativo: crea il branch e poi push
             print(f"  🔄 Tentativo creando branch remoto...")
-            if not run_git_command(f"git push --set-upstream {fork_remote} {current_branch}:{branch_name}", cwd=repo_dir, timeout=180):
+            if not run_git_command(f"git push --set-upstream {fork_remote} {current_branch}:{fork_branch_name}", cwd=repo_dir, timeout=180):
                 print(f"  ❌ Push al fork fallito")
                 return False
 
@@ -541,9 +547,12 @@ def main():
                 skipped_count += 1
                 continue
 
-            # Verifica se il branch esiste già nel fork
-            if check_branch_exists_in_fork(fork, branch_name):
-                print(f"  ⚠️  Branch {branch_name} già esistente nel fork, saltando...")
+            # Verifica se il branch esiste già nel fork (con il nuovo naming)
+            source_repo_name = pr.head.repo.full_name.replace('/', '-')
+            fork_branch_name = f"{source_repo_name}-{branch_name}"
+
+            if check_branch_exists_in_fork(fork, fork_branch_name):
+                print(f"  ⚠️  Branch {fork_branch_name} già esistente nel fork, saltando...")
                 skipped_count += 1
                 continue
 
@@ -579,7 +588,7 @@ def main():
                 new_pr = fork.create_pull(
                     title=f"Replica: {pr_title}",
                     body=pr_body,
-                    head=branch_name,
+                    head=fork_branch_name,  # Usa il nuovo nome del branch
                     base=default_branch
                 )
                 print(f"  ✅ PR creata: {new_pr.html_url}")
