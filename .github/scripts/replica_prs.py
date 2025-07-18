@@ -60,22 +60,29 @@ def run_git_command(command, cwd=None, timeout=300):
         print(f"    ⏱️  Tempo esecuzione: {execution_time:.2f}s")
         print(f"    ✅ Return code: {result.returncode}")
 
-        if result.stdout:
+        # Git spesso invia messaggi di progresso su stderr anche quando ha successo
+        has_stdout = result.stdout and result.stdout.strip()
+        has_stderr = result.stderr and result.stderr.strip()
+
+        if has_stdout:
             print(f"    📤 STDOUT completo:")
-            # Mostra tutto l'output, non troncato
             for line in result.stdout.strip().split('\n'):
                 print(f"       {line}")
-        else:
-            print(f"    📤 STDOUT: (vuoto)")
 
-        if result.stderr:
-            print(f"    📝 STDERR:")
+        if has_stderr:
+            # Per git clone e altri comandi, stderr spesso contiene messaggi di progresso normali
+            if "git clone" in command or "git fetch" in command or "git push" in command:
+                print(f"    📋 Messaggi di progresso (stderr):")
+            else:
+                print(f"    📝 STDERR:")
             for line in result.stderr.strip().split('\n'):
                 print(f"       {line}")
-        else:
-            print(f"    📝 STDERR: (vuoto)")
 
-        return result.stdout.strip()
+        if not has_stdout and not has_stderr:
+            print(f"    📤 Nessun output generato")
+
+        # Restituisce True per successo
+        return True
 
     except subprocess.CalledProcessError as e:
         execution_time = time.time() - start_time if 'start_time' in locals() else 0
@@ -118,7 +125,7 @@ def run_git_command(command, cwd=None, timeout=300):
             elif "name resolution" in error_lower:
                 print(f"    💡 Suggerimento: Problema di risoluzione DNS")
 
-        return None
+        return False
 
     except subprocess.TimeoutExpired as e:
         safe_command = command.replace(os.environ.get("GH_TOKEN", ""), "***") if "GH_TOKEN" in os.environ else command
@@ -137,7 +144,25 @@ def run_git_command(command, cwd=None, timeout=300):
                 print(f"       {line}")
 
         print(f"    💡 Suggerimento: Comando troppo lento, considera di aumentare il timeout o verificare la connessione")
+        return False
+
+def get_git_output(command, cwd=None, timeout=300):
+    """Esegue un comando git e restituisce l'output se ha successo"""
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+            env=dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return None
+
 def setup_git_config(repo_dir):
     """Configura git per evitare errori di configurazione"""
     commands = [
@@ -298,7 +323,7 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
 
         # Checkout del branch se necessario (solo se il clone ha funzionato)
         if os.path.exists(repo_dir) and os.path.exists(os.path.join(repo_dir, '.git')):
-            current_branch = run_git_command("git branch --show-current", cwd=repo_dir)
+            current_branch = get_git_output("git branch --show-current", cwd=repo_dir)
             if current_branch != branch_name:
                 print(f"  🔄 Checkout branch {branch_name}...")
                 if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
@@ -310,7 +335,7 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
                         run_git_command("git fetch --all", cwd=repo_dir)
 
                     # Lista tutti i branch disponibili per debug
-                    branches = run_git_command("git branch -a", cwd=repo_dir)
+                    branches = get_git_output("git branch -a", cwd=repo_dir)
                     print(f"  📋 Branch disponibili: {branches}")
 
                     if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
@@ -325,7 +350,7 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
     # Step 3: Verifica stato del repository
     print(f"  🔍 Verifica stato repository...")
     if os.path.exists(os.path.join(repo_dir, '.git')):
-        current_branch = run_git_command("git branch --show-current", cwd=repo_dir)
+        current_branch = get_git_output("git branch --show-current", cwd=repo_dir)
         if current_branch and current_branch != branch_name:
             print(f"  ⚠️  Branch corrente ({current_branch}) diverso da quello richiesto ({branch_name})")
             # Non fallire se siamo su un branch correlato (es. origin/branch)
@@ -351,7 +376,7 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
 
     print(f"  🔗 Configurando remote fork...")
     # Controlla se remote fork esiste già
-    remotes = run_git_command("git remote -v", cwd=repo_dir)
+    remotes = get_git_output("git remote -v", cwd=repo_dir)
     if remotes:
         if "fork" in remotes:
             print(f"  ℹ️  Remote fork già presente, rimuovendo per riconfigurare...")
@@ -377,12 +402,12 @@ def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, p
         fork_remote = "origin"
 
     # Verifica remote configurati
-    final_remotes = run_git_command("git remote -v", cwd=repo_dir)
+    final_remotes = get_git_output("git remote -v", cwd=repo_dir)
     print(f"  📋 Remote configurati: {final_remotes}")
 
     # Step 5: Push del branch al fork
     print(f"  📤 Push del branch {branch_name} al fork...")
-    current_branch = run_git_command("git branch --show-current", cwd=repo_dir) or "main"
+    current_branch = get_git_output("git branch --show-current", cwd=repo_dir) or "main"
 
     # Prova prima con il nome del branch corretto
     push_command = f"git push {fork_remote} {current_branch}:{branch_name}"
