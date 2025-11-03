@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-require 'net/http'
-require 'json'
-require 'timeout'
+require 'truemail/client'
 
 module Postal
   module MessageInspectors
@@ -57,31 +55,45 @@ module Postal
       end
 
       def validate_email(email)
-        uri = URI("#{@config.url}/validate")
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = uri.scheme == 'https'
-        http.read_timeout = @config.timeout || 10
-
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request.body = { email: email }.to_json
+        client = create_client
 
         Timeout.timeout(@config.timeout || 10) do
-          response = http.request(request)
+          response = client.validate(email: email)
 
-          if response.code == '200'
-            result = JSON.parse(response.body)
-            {
-              success: result['result'] == 'valid',
-              errors: result['errors']
-            }
-          else
-            {
-              success: false,
-              errors: ["HTTP #{response.code}: #{response.message}"]
-            }
-          end
+          {
+            success: response.dig('result', 'success') == true,
+            errors: extract_errors(response)
+          }
         end
+      end
+
+      def create_client
+        configuration = { 
+          host: @config.host,
+          port: @config.port || 9292,
+          secure_connection: @config.ssl || false
+        }
+        
+        configuration[:token] = @config.token if @config.token.present?
+
+        ::Truemail::Client.configure do |config|
+          config.host = configuration[:host]
+          config.port = configuration[:port]
+          config.secure_connection = configuration[:secure_connection]
+          config.token = configuration[:token] if configuration[:token]
+        end
+
+        ::Truemail::Client.new
+      end
+
+      def extract_errors(response)
+        errors = []
+        
+        if response.dig('result', 'success') == false
+          errors << (response.dig('result', 'errors') || response.dig('errors') || ['Validation failed'])
+        end
+
+        errors.flatten
       end
 
     end
