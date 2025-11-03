@@ -2,6 +2,7 @@
 
 require 'truemail/client'
 require 'json'
+require 'timeout'
 
 module Postal
   module MessageInspectors
