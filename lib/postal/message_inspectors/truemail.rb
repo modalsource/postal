@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'truemail/client'
+require 'json'
 
 module Postal
   module MessageInspectors
@@ -55,45 +56,39 @@ module Postal
       end
 
       def validate_email(email)
-        client = create_client
+        configure_client
 
         Timeout.timeout(@config.timeout || 10) do
-          response = client.validate(email: email)
+          response_json = ::Truemail::Client.validate(email)
+          response = JSON.parse(response_json)
 
           {
-            success: response.dig('result', 'success') == true,
+            success: response['success'] == true,
             errors: extract_errors(response)
           }
         end
       end
 
-      def create_client
-        configuration = { 
-          host: @config.host,
-          port: @config.port || 9292,
-          secure_connection: @config.ssl || false
-        }
-        
-        configuration[:token] = @config.token if @config.token.present?
-
+      def configure_client
         ::Truemail::Client.configure do |config|
-          config.host = configuration[:host]
-          config.port = configuration[:port]
-          config.secure_connection = configuration[:secure_connection]
-          config.token = configuration[:token] if configuration[:token]
+          config.host = @config.host
+          config.port = @config.port || 9292
+          config.secure_connection = @config.ssl || false
+          config.token = @config.token if @config.token.present?
         end
-
-        ::Truemail::Client.new
       end
 
       def extract_errors(response)
         errors = []
         
-        if response.dig('result', 'success') == false
-          errors << (response.dig('result', 'errors') || response.dig('errors') || ['Validation failed'])
+        if response['success'] == false
+          # Check for various error sources in the response
+          errors << response['errors'] if response['errors']
+          errors << response['truemail_client_error'] if response['truemail_client_error']
+          errors << 'Validation failed' if errors.empty?
         end
 
-        errors.flatten
+        errors.flatten.compact
       end
 
     end
