@@ -66,6 +66,11 @@ module Postal
         default true
       end
 
+      integer :default_dkim_key_size do
+        description "The default size for new DKIM keys"
+        default 1024
+      end
+
       string :signing_key_path do
         description "Path to the private key used for signing"
         default "$config-file-root/signing.key"
@@ -487,6 +492,37 @@ module Postal
       integer :port do
         description "The port of the ClamAV server"
         default 2000
+      end
+    end
+
+    group :truemail do
+      boolean :enabled do
+        description "Enable Truemail for email address validation"
+        default false
+      end
+
+      string :host do
+        description "The host of the Truemail API server"
+        default "127.0.0.1"
+      end
+
+      integer :port do
+        description "The port of the Truemail API server"
+        default 9292
+      end
+
+      boolean :ssl do
+        description "Enable SSL for Truemail API connection"
+        default false
+      end
+
+      string :token do
+        description "Authentication token for Truemail API server"
+      end
+
+      integer :timeout do
+        description "Request timeout for Truemail API calls (seconds)"
+        default 10
       end
     end
 

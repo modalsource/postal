@@ -232,6 +232,82 @@ module MessageDequeuer
       end
     end
 
+    context "when the message has invalid email" do
+      let(:server) { create(:server, truemail_enabled: true, outbound_spam_threshold: 5.0) }
+
+      it "logs email validation process" do
+        inspection_result = double("Result", spam_score: 1.0, threat: false, threat_message: nil, spam_checks: [], validation_failed: false, validation_message: nil)
+        allow(Postal::MessageInspection).to receive(:scan).and_return(inspection_result)
+        processor.process
+        expect(logger).to have_logged(/inspecting message/)
+        expect(logger).to have_logged(/message inspected successfully/)
+      end
+
+      context "when email validation fails" do
+        before do
+          inspection_result = double("Result",
+            spam_score: 1.0,
+            threat: false,
+            threat_message: nil,
+            spam_checks: [],
+            validation_failed: true,
+            validation_message: "Invalid email address format"
+          )
+          allow(Postal::MessageInspection).to receive(:scan).and_return(inspection_result)
+        end
+
+        it "logs the validation failure" do
+          processor.process
+          expect(logger).to have_logged(/email validation failed with Truemail, hard failing/)
+        end
+
+        it "adds recipient to suppression list" do
+          processor.process
+          expect(logger).to have_logged(/added recipient to suppression list/)
+        end
+
+        it "sets the message status to HardFail" do
+          processor.process
+          expect(message.reload.status).to eq "HardFail"
+        end
+
+        it "creates a HardFail delivery with validation message" do
+          processor.process
+          delivery = message.deliveries.last
+          expect(delivery).to have_attributes(status: "HardFail", details: /Email address validation failed: Invalid email address format/i)
+        end
+
+        it "removes the queued message" do
+          processor.process
+          expect { queued_message.reload }.to raise_error(ActiveRecord::RecordNotFound)
+        end
+      end
+
+      context "when email validation passes" do
+        before do
+          inspection_result = double("Result",
+            spam_score: 1.0,
+            threat: false,
+            threat_message: nil,
+            spam_checks: [],
+            validation_failed: false,
+            validation_message: nil
+          )
+          allow(Postal::MessageInspection).to receive(:scan).and_return(inspection_result)
+        end
+
+        it "does not fail the message" do
+          processor.process
+          expect(message.reload.status).to_not eq "HardFail"
+        end
+
+        it "does not add recipient to suppression list" do
+          processor.process
+          expect(logger).to_not have_logged(/added recipient to suppression list/)
+        end
+      end
+    end
+
     context "when the message already has an x-postal-msgid header" do
       let(:message) do
         MessageFactory.outgoing(server, domain: domain, credential: credential) do |_, mail|

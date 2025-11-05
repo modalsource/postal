@@ -8,12 +8,15 @@ module Postal
     attr_reader :spam_checks
     attr_accessor :threat
     attr_accessor :threat_message
+    attr_accessor :validation_failed
+    attr_accessor :validation_message
 
     def initialize(message, scope)
       @message = message
       @scope = scope
       @spam_checks = []
       @threat = false
+      @validation_failed = false
     end
 
     def spam_score

@@ -28,6 +28,7 @@
 #  suspended_at                       :datetime
 #  suspension_reason                  :string(255)
 #  token                              :string(255)
+#  truemail_enabled                   :boolean          default(FALSE)
 #  uuid                               :string(255)
 #  created_at                         :datetime
 #  updated_at                         :datetime
@@ -300,6 +301,10 @@ class Server < ApplicationRecord
     end
 
     ip_pool
+  end
+
+  def truemail_enabled?
+    truemail_enabled == true
   end
 
   private

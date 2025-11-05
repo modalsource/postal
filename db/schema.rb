@@ -251,6 +251,7 @@ ActiveRecord::Schema[7.0].define(version: 2025_09_15_065902) do
     t.string "suspension_reason"
     t.boolean "log_smtp_data", default: false
     t.boolean "privacy_mode", default: false
+    t.boolean "truemail_enabled", default: false
     t.index ["organization_id"], name: "index_servers_on_organization_id"
     t.index ["permalink"], name: "index_servers_on_permalink", length: 6
     t.index ["token"], name: "index_servers_on_token", length: 6
