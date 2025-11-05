@@ -28,6 +28,7 @@ gem "rails", "= 7.0.8.1"
 gem "resolv"
 gem "secure_headers"
 gem "sentry-rails"
+gem "truemail-client"
 gem "turbolinks", "~> 5"
 gem "webrick"
 

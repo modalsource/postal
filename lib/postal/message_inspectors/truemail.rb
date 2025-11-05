@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require 'net/http'
+require 'truemail/client'
 require 'json'
 require 'timeout'
 
@@ -57,31 +57,39 @@ module Postal
       end
 
       def validate_email(email)
-        uri = URI("#{@config.url}/validate")
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.use_ssl = uri.scheme == 'https'
-        http.read_timeout = @config.timeout || 10
-
-        request = Net::HTTP::Post.new(uri)
-        request['Content-Type'] = 'application/json'
-        request.body = { email: email }.to_json
+        configure_client
 
         Timeout.timeout(@config.timeout || 10) do
-          response = http.request(request)
+          response_json = ::Truemail::Client.validate(email)
+          response = JSON.parse(response_json)
 
-          if response.code == '200'
-            result = JSON.parse(response.body)
-            {
-              success: result['result'] == 'valid',
-              errors: result['errors']
-            }
-          else
-            {
-              success: false,
-              errors: ["HTTP #{response.code}: #{response.message}"]
-            }
-          end
+          {
+            success: response['success'] == true,
+            errors: extract_errors(response)
+          }
         end
+      end
+
+      def configure_client
+        ::Truemail::Client.configure do |config|
+          config.host = @config.host
+          config.port = @config.port || 9292
+          config.secure_connection = @config.ssl || false
+          config.token = @config.token if @config.token.present?
+        end
+      end
+
+      def extract_errors(response)
+        errors = []
+        
+        if response['success'] == false
+          # Check for various error sources in the response
+          errors << response['errors'] if response['errors']
+          errors << response['truemail_client_error'] if response['truemail_client_error']
+          errors << 'Validation failed' if errors.empty?
+        end
+
+        errors.flatten.compact
       end
 
     end

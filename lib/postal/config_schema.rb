@@ -511,6 +511,10 @@ module Postal
         default false
       end
 
+      string :token do
+        description "Authentication token for Truemail API server"
+      end
+
       integer :timeout do
         description "Request timeout for Truemail API calls (seconds)"
         default 10
