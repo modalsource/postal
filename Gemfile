@@ -33,6 +33,7 @@ gem "rails", "= 7.1.5.2"
 gem "resolv"
 gem "secure_headers"
 gem "sentry-rails"
+gem "truemail-client"
 gem "turbolinks", "~> 5"
 gem "webrick"
 

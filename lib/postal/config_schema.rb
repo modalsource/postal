@@ -66,6 +66,11 @@ module Postal
         default true
       end
 
+      integer :default_dkim_key_size do
+        description "The default size for new DKIM keys"
+        default 1024
+      end
+
       string :signing_key_path do
         description "Path to the private key used for signing"
         default "$config-file-root/signing.key"
@@ -413,6 +418,11 @@ module Postal
         description "The e-mail to use as the from address outgoing emails from Postal"
         default "postal@example.com"
       end
+
+      boolean :disable_ipv6 do
+        description "Disalbles sending emails via IPv6, only IPv4 will be used"
+        default false
+      end
     end
 
     group :rails do
@@ -511,6 +521,10 @@ module Postal
         default false
       end
 
+      string :token do
+        description "Authentication token for Truemail API server"
+      end
+
       integer :timeout do
         description "Request timeout for Truemail API calls (seconds)"
         default 10
@@ -564,6 +578,11 @@ module Postal
 
       string :issuer do
         description "The OIDC issuer URL"
+      end
+
+      boolean :pkce do
+        description "Option to enable Proof Key for Code Exchange by OAuth Public Clients"
+        default false
       end
 
       string :identifier do
