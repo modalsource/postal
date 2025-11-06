@@ -44,7 +44,8 @@ jobs:
           tags: ghcr.io/modalsource/postal:ci-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          target: ci
+          #target: ci
+          target: full
           platforms: linux/amd64
 
   test:
