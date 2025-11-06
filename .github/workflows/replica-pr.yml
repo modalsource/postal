@@ -27,6 +27,7 @@ jobs:
       - name: Replica PRs
         env:
           GH_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}  # Usa PAT invece di GITHUB_TOKEN
+          GITHUB_TOKEN: ${{ secrets.REPO_ACCESS_TOKEN }}  # uguale a sopra, ma con un valore diverso
           UPSTREAM_REPO: postalserver/postal
           FORK_REPO: ${{ github.repository }}  # Usa automaticamente il repository corrente
         run: python .github/scripts/replica_prs.py
