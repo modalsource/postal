@@ -1,0 +1,7 @@
+// Handle MTA-STS policy check response
+<% if @result && @result[:success] %>
+  Postal.showNotice('<%= j @result[:message] %>');
+<% elsif @result %>
+  Postal.showAlert('<%= j @result[:error] %>');
+<% end %>
+

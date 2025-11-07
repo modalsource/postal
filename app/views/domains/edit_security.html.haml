@@ -1,0 +1,98 @@
+- if @server
+  - page_title << @server.name
+- page_title << @domain.name
+- page_title << "Email Security"
+
+- if @server
+  = render 'servers/sidebar', :active_server => @server
+  = render 'servers/header', :active_nav => :domains
+  = render 'nav', :active_nav => :domains
+- else
+  .pageHeader
+    %h1.pageHeader__title
+      %span.pageHeader__titlePrevious
+        = @organization.name
+        &rarr; Domains &rarr;
+      = @domain.name
+  = render 'organizations/nav', :active_nav => :domains
+
+.pageContent.pageContent--compact
+  %h2.pageContent__title Email Security Settings for #{@domain.name}
+  %p.pageContent__intro.u-margin
+    Configure MTA-STS and TLS-RPT to improve email security and get reports on TLS connection issues.
+
+  = form_for @domain, :url => [:update_security, organization, @server, @domain], :html => {:class => 'form'} do |f|
+    .form__row
+      .form__section
+        %h3.form__sectionTitle MTA-STS (SMTP MTA Strict Transport Security)
+        %p.form__sectionIntro
+          MTA-STS ensures that email servers use TLS when sending email to your domain, preventing downgrade attacks.
+          %a{href: "https://datatracker.ietf.org/doc/html/rfc8461", target: "_blank"} Learn more about MTA-STS
+
+    .form__row
+      .form__section
+        .form__field
+          = f.label :mta_sts_enabled, "Enable MTA-STS", :class => 'form__label'
+          .form__element
+            = f.check_box :mta_sts_enabled, :class => 'form__checkbox'
+            %span.form__help After enabling, you'll need to configure DNS records (see DNS Setup page)
+
+    .form__row
+      .form__section
+        .form__field
+          = f.label :mta_sts_mode, "Policy Mode", :class => 'form__label'
+          .form__element
+            = f.select :mta_sts_mode, Domain::MTA_STS_MODES.map { |mode| [mode.titleize, mode] }, {}, :class => 'form__select'
+            %span.form__help
+              %strong Testing:
+              Receive reports but don't enforce TLS.
+              %strong Enforce:
+              Reject messages not sent over TLS.
+              %strong None:
+              Disable MTA-STS.
+
+    .form__row
+      .form__section
+        .form__field
+          = f.label :mta_sts_max_age, "Max Age (seconds)", :class => 'form__label'
+          .form__element
+            = f.number_field :mta_sts_max_age, :class => 'form__textField', :min => 86400, :step => 1
+            %span.form__help How long should senders cache the policy (minimum 86400 = 1 day). Recommended: 604800 (7 days)
+
+    .form__row
+      .form__section
+        .form__field
+          = f.label :mta_sts_mx_patterns, "MX Patterns (one per line)", :class => 'form__label'
+          .form__element
+            = f.text_area :mta_sts_mx_patterns, :class => 'form__textArea', :rows => 5, :placeholder => "*.mx.example.com\nmx1.example.com"
+            %span.form__help
+              Leave empty to use default MX records from your Postal configuration.
+              Use wildcards (e.g., *.mx.example.com) to match multiple hosts.
+
+    .form__row.form__row--separator
+      .form__section
+        %h3.form__sectionTitle TLS-RPT (TLS Reporting)
+        %p.form__sectionIntro
+          TLS-RPT allows you to receive reports about TLS connection failures from sending mail servers.
+          %a{href: "https://datatracker.ietf.org/doc/html/rfc8460", target: "_blank"} Learn more about TLS-RPT
+
+    .form__row
+      .form__section
+        .form__field
+          = f.label :tls_rpt_enabled, "Enable TLS-RPT", :class => 'form__label'
+          .form__element
+            = f.check_box :tls_rpt_enabled, :class => 'form__checkbox'
+            %span.form__help Receive aggregate reports about TLS connection issues
+
+    .form__row
+      .form__section
+        .form__field
+          = f.label :tls_rpt_email, "Report Email Address", :class => 'form__label'
+          .form__element
+            = f.text_field :tls_rpt_email, :class => 'form__textField', :placeholder => "tls-reports@#{@domain.name}"
+            %span.form__help Where to send TLS reports. Leave empty to use tls-reports@#{@domain.name}
+
+    .form__actions
+      = f.submit "Save Security Settings", :class => 'button'
+      = link_to "Cancel", [:setup, organization, @server, @domain], :class => 'button button--neutral'
+

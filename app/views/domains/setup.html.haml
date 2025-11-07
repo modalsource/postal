@@ -26,6 +26,7 @@
 
   .u-margin.buttonSet
     = link_to "Check my records are correct", [:check, organization, @server, @domain], :remote => true, :method => :post, :class => 'button'
+    = link_to "Configure MTA-STS & TLS-RPT", [:edit_security, organization, @server, @domain], :class => 'button'
     = link_to "Back to domain list", [organization, @server, :domains], :class => 'button button--neutral'
   - if @domain.dns_checked_at
     %p.u-margin We last checked the validity of your DNS records #{distance_of_time_in_words_to_now @domain.dns_checked_at} ago.
@@ -100,3 +101,48 @@
     to the domain. You don't have to do this and we'll only tell you if they're set up or not. Both
     records should be priority <b>10</b>.
   %pre.codeBlock.u-margin= Postal::Config.dns.mx_records.join("\n")
+
+  - if @domain.mta_sts_enabled
+    %h3.pageContent__subTitle MTA-STS
+    - if @domain.mta_sts_status == 'OK'
+      %p.pageContent__text.u-green.u-bold
+        %span.label.label--green Good
+        Your MTA-STS DNS record and policy file are accessible and valid!
+    - elsif !@domain.mta_sts_status.nil?
+      %p.pageContent__text.u-orange.u-bold
+        %span.label.label--orange Warning
+        = @domain.mta_sts_error
+
+    %p.pageContent__text
+      MTA-STS helps ensure that email sent to your domain is delivered over secure TLS connections.
+      Add a TXT record at <b>#{@domain.mta_sts_record_name}</b> with the following content:
+    %pre.codeBlock.u-margin= @domain.mta_sts_record_value
+
+    %p.pageContent__text
+      Additionally, you need to serve the MTA-STS policy file at:
+    %pre.codeBlock.u-margin= @domain.mta_sts_policy_url
+
+    %p.pageContent__text
+      To do this, create an <b>A record</b> or <b>CNAME</b> for <b>mta-sts.#{@domain.name}</b> that points to your Postal installation.
+
+    %p.pageContent__text
+      You can verify the policy file is accessible by clicking the button below or visiting the URL directly:
+    .u-margin.buttonSet
+      = link_to "Test MTA-STS Policy File", [:check_mta_sts_policy, organization, @server, @domain], :remote => true, :method => :post, :class => 'button', :data => { confirm: false }
+      = link_to "View Policy File", @domain.mta_sts_policy_url, :class => 'button button--neutral', :target => '_blank'
+
+  - if @domain.tls_rpt_enabled
+    %h3.pageContent__subTitle TLS-RPT (TLS Reporting)
+    - if @domain.tls_rpt_status == 'OK'
+      %p.pageContent__text.u-green.u-bold
+        %span.label.label--green Good
+        Your TLS-RPT record looks good!
+    - elsif !@domain.tls_rpt_status.nil?
+      %p.pageContent__text.u-orange.u-bold
+        %span.label.label--orange Warning
+        = @domain.tls_rpt_error
+
+    %p.pageContent__text
+      TLS-RPT allows you to receive reports about TLS connection issues from sending MTAs.
+      Add a TXT record at <b>#{@domain.tls_rpt_record_name}</b> with the following content:
+    %pre.codeBlock.u-margin= @domain.tls_rpt_record_value
