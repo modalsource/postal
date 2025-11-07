@@ -2,28 +2,39 @@
 
 class MtaStsController < ApplicationController
 
-  layout false
-
-  skip_before_action :set_browser_id
   skip_before_action :login_required
   skip_before_action :set_timezone
-  skip_before_action :verify_authenticity_token
+
+  # Evita che le eccezioni Authie vengano catturate
+  rescue_from Authie::Session::InactiveSession, with: :ignore_auth_errors
+  rescue_from Authie::Session::ExpiredSession, with: :ignore_auth_errors
+  rescue_from Authie::Session::BrowserMismatch, with: :ignore_auth_errors
+
+  layout false
+  protect_from_forgery with: :null_session
 
   # GET /.well-known/mta-sts.txt
   # Serve la policy MTA-STS per il dominio richiesto
   def policy
     domain_name = extract_domain_from_host
 
-    unless domain_name
+    Rails.logger.info "MTA-STS policy request - Host: #{request.host}, Extracted domain: #{domain_name}"
+
+    unless domain_name.present?
+      Rails.logger.warn "MTA-STS policy request failed - Invalid domain from host: #{request.host}"
       render plain: "Invalid domain", status: :not_found
       return
     end
 
     # Cerca il dominio nel database
     # Il dominio deve essere verificato e avere MTA-STS abilitato
-    domain = Domain.verified.find_by(name: domain_name, mta_sts_enabled: true)
+    # La ricerca è case-insensitive per il nome del dominio
+    domain = Domain.verified.where(mta_sts_enabled: true)
+                     .where("LOWER(name) = ?", domain_name.downcase)
+                     .first
 
     unless domain
+      Rails.logger.warn "MTA-STS policy request failed - Domain not found or not enabled: #{domain_name}"
       render plain: "MTA-STS policy not found", status: :not_found
       return
     end
@@ -31,6 +42,7 @@ class MtaStsController < ApplicationController
     policy_content = domain.mta_sts_policy_content
 
     unless policy_content
+      Rails.logger.error "MTA-STS policy request failed - No policy content for domain: #{domain_name}"
       render plain: "MTA-STS policy not configured", status: :not_found
       return
     end
@@ -39,10 +51,15 @@ class MtaStsController < ApplicationController
     response.headers["Content-Type"] = "text/plain; charset=utf-8"
     response.headers["Cache-Control"] = "max-age=#{domain.mta_sts_max_age || 86400}"
 
+    Rails.logger.info "MTA-STS policy served successfully for domain: #{domain_name}"
     render plain: policy_content
   end
 
   private
+
+  def ignore_auth_errors
+    # Non fare nulla - questo è un endpoint pubblico
+  end
 
   def extract_domain_from_host
     host = request.host

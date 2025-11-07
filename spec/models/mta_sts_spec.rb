@@ -4,7 +4,7 @@ require 'rails_helper'
 
 RSpec.describe 'MTA-STS Policy File Check' do
   let(:organization) { create(:organization) }
-  let(:domain) { create(:domain, organization: organization, name: 'example.com', verified_at: Time.now) }
+  let(:domain) { create(:domain, owner: organization, name: 'example.com', verified_at: Time.now) }
 
   describe '#check_mta_sts_policy_file' do
     before do
