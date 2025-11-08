@@ -5,11 +5,6 @@ class MtaStsController < ApplicationController
   skip_before_action :login_required
   skip_before_action :set_timezone
 
-  # Evita che le eccezioni Authie vengano catturate
-  rescue_from Authie::Session::InactiveSession, with: :ignore_auth_errors
-  rescue_from Authie::Session::ExpiredSession, with: :ignore_auth_errors
-  rescue_from Authie::Session::BrowserMismatch, with: :ignore_auth_errors
-
   layout false
   protect_from_forgery with: :null_session
 
@@ -56,10 +51,6 @@ class MtaStsController < ApplicationController
   end
 
   private
-
-  def ignore_auth_errors
-    # Non fare nulla - questo è un endpoint pubblico
-  end
 
   def extract_domain_from_host
     host = request.host
