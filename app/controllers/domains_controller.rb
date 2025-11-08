@@ -21,11 +21,6 @@ class DomainsController < ApplicationController
     end
   end
 
-  def show
-    # Show redirects to setup for convenience
-    redirect_to [:setup, organization, @server, @domain]
-  end
-
   def new
     @domain = @server ? @server.domains.build : organization.domains.build
   end
