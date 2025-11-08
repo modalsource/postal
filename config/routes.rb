@@ -8,22 +8,30 @@ Rails.application.routes.draw do
   match "/api/v1/messages/deliveries" => "legacy_api/messages#deliveries", via: [:get, :post, :patch, :put]
 
   scope "org/:org_permalink", as: "organization" do
-    resources :domains, only: [:index, :new, :create, :destroy] do
-      match :verify, on: :member, via: [:get, :post]
-      get :setup, on: :member
-      post :check, on: :member
-      get :edit_security, on: :member
-      patch :update_security, on: :member
-      post :check_mta_sts_policy, on: :member
-    end
+    # Domain routes at organization level
+    get "domains" => "domains#index", as: :domains
+    post "domains" => "domains#create"
+    get "domains/new" => "domains#new", as: :new_domain
+    get "domains/:id" => "domains#show", as: :domain
+    delete "domains/:id" => "domains#destroy"
+    match "domains/:id/verify" => "domains#verify", via: [:get, :post], as: :verify_domain
+    get "domains/:id/setup" => "domains#setup", as: :setup_domain
+    post "domains/:id/check" => "domains#check", as: :check_domain
+    get "domains/:id/edit_security" => "domains#edit_security", as: :edit_security_domain
+    patch "domains/:id/update_security" => "domains#update_security", as: :update_security_domain
+    post "domains/:id/check_mta_sts_policy" => "domains#check_mta_sts_policy", as: :check_mta_sts_policy_domain
+
+
     resources :servers, except: [:index] do
       resources :domains, only: [:index, :new, :create, :destroy] do
-        match :verify, on: :member, via: [:get, :post]
-        get :setup, on: :member
-        post :check, on: :member
-        get :edit_security, on: :member
-        patch :update_security, on: :member
-        post :check_mta_sts_policy, on: :member
+        member do
+          match :verify, via: [:get, :post]
+          get :setup
+          post :check
+          get :edit_security
+          patch :update_security
+          post :check_mta_sts_policy
+        end
       end
       resources :track_domains do
         post :toggle_ssl, on: :member

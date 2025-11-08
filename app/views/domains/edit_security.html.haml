@@ -32,7 +32,9 @@
       .fieldSet__field
         = f.label :mta_sts_enabled, "Enable MTA-STS", :class => 'fieldSet__label'
         .fieldSet__input
-          = f.check_box :mta_sts_enabled, :class => 'input input--checkbox'
+          .fieldSet__checkboxWrapper
+            = f.check_box :mta_sts_enabled, :class => 'fieldSet__checkbox'
+            = f.label :mta_sts_enabled, "Enable MTA-STS for this domain", :class => 'fieldSet__checkboxLabel'
           %p.fieldSet__text After enabling, you'll need to configure DNS records (see DNS Setup page)
 
       .fieldSet__field
@@ -70,7 +72,9 @@
       .fieldSet__field
         = f.label :tls_rpt_enabled, "Enable TLS-RPT", :class => 'fieldSet__label'
         .fieldSet__input
-          = f.check_box :tls_rpt_enabled, :class => 'input input--checkbox'
+          .fieldSet__checkboxWrapper
+            = f.check_box :tls_rpt_enabled, :class => 'fieldSet__checkbox'
+            = f.label :tls_rpt_enabled, "Enable TLS reporting for this domain", :class => 'fieldSet__checkboxLabel'
           %p.fieldSet__text Receive aggregate reports about TLS connection issues
 
       .fieldSet__field

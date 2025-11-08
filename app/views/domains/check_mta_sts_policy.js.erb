@@ -1,7 +1,9 @@
 // Handle MTA-STS policy check response
 <% if @result && @result[:success] %>
-  Postal.showNotice('<%= j @result[:message] %>');
+  Postal.showNotice('MTA-STS policy file is accessible and valid at <%= j @domain.mta_sts_policy_url %>');
 <% elsif @result %>
   Postal.showAlert('<%= j @result[:error] %>');
+<% else %>
+  Postal.showAlert('Unable to check MTA-STS policy file. Please try again.');
 <% end %>
 
