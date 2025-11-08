@@ -212,9 +212,21 @@ module HasDNSChecks
       response = http.request(request)
 
       if response.code != '200'
+        error_message = "Policy file returned HTTP #{response.code}. Expected 200. URL: #{url}"
+
+        # Add helpful hints for common errors
+        if response.code == '403'
+          error_message += "\n\nThis usually means the endpoint is protected by HTTP authentication or firewall rules. "
+          error_message += "Make sure /.well-known/mta-sts.txt is publicly accessible without authentication."
+        elsif response.code == '404'
+          error_message += "\n\nThe policy file was not found. Verify that your web server is correctly routing requests to the Postal application."
+        elsif response.code.to_i >= 500
+          error_message += "\n\nThe server encountered an error. Check your application logs for more details."
+        end
+
         return {
           success: false,
-          error: "Policy file returned HTTP #{response.code}. Expected 200. URL: #{url}"
+          error: error_message
         }
       end
 
