@@ -2,11 +2,11 @@
 
 class MtaStsController < ApplicationController
 
-  skip_before_action :login_required
-  skip_before_action :set_timezone
-
   layout false
   protect_from_forgery with: :null_session
+
+  skip_before_action :login_required
+  skip_before_action :set_timezone
 
   # GET /.well-known/mta-sts.txt
   # Serve la policy MTA-STS per il dominio richiesto
