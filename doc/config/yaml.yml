@@ -153,6 +153,8 @@ dns:
   timeout: 5
   # The path to the resolv.conf file containing addresses for local nameservers
   resolv_conf_path: /etc/resolv.conf
+  # The preferred DMARC DNS record to check against configured domains
+  dmarc_preferred_dns_entry: 
 
 smtp:
   # The hostname to send application-level e-mails to

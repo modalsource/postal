@@ -70,6 +70,7 @@ This document contains all the environment variables which are available for thi
 | `DNS_CUSTOM_RETURN_PATH_PREFIX` | String | The domain to use on external domains which points to the Postal return path domain | psrp |
 | `DNS_TIMEOUT` | Integer | The timeout to wait for DNS resolution | 5 |
 | `DNS_RESOLV_CONF_PATH` | String | The path to the resolv.conf file containing addresses for local nameservers | /etc/resolv.conf |
+| `DNS_DMARC_PREFERRED_DNS_ENTRY` | String | The preferred DMARC DNS record to check against configured domains |  |
 | `SMTP_HOST` | String | The hostname to send application-level e-mails to | 127.0.0.1 |
 | `SMTP_PORT` | Integer | The port number to send application-level e-mails to | 25 |
 | `SMTP_USERNAME` | String | The username to use when authentication to the SMTP server |  |
