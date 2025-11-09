@@ -26,6 +26,38 @@ You can use the `PORT` and `BIND_ADDRESS` environment variables to provide insta
 
 Additionally, `HEALTH_SERVER_PORT` and `HEALTH_SERVER_BIND_ADDRESS`  can be used to set the port/address to use for running the health server alongside other processes.
 
+## MTA-STS Configuration
+
+Postal supports MTA-STS (Mail Transfer Agent Strict Transport Security) for enhanced email security. MTA-STS requires serving policy files at `https://mta-sts.yourdomain.com/.well-known/mta-sts.txt`.
+
+### Host Authorization
+
+Rails 7 includes a `HostAuthorization` middleware that blocks requests with unauthorized `Host` headers. While Postal automatically permits hosts matching the pattern `/\Amta-sts\./i`, in some production environments you may need to explicitly allow MTA-STS domains.
+
+### MTA_STS_DOMAINS Environment Variable
+
+Use the `MTA_STS_DOMAINS` environment variable to specify additional domains that should be allowed for MTA-STS policy serving:
+
+```bash
+# Single domain
+MTA_STS_DOMAINS="mta-sts.example.com"
+
+# Multiple domains (comma-separated)
+MTA_STS_DOMAINS="mta-sts.domain1.com,mta-sts.domain2.com,mta-sts.domain3.com"
+```
+
+**When to use:**
+- When deploying on Kubernetes or other container orchestration platforms
+- When using reverse proxies that may interfere with host header matching
+- When the automatic regex matching `/\Amta-sts\./i` doesn't work in your environment
+
+**Security Note:** Only add domains that you control and need for MTA-STS. The `/.well-known/mta-sts.txt` endpoint must be publicly accessible (no authentication required) as per RFC 8461.
+
+For detailed MTA-STS setup instructions, see:
+- `doc/MTA-STS-SETUP-GUIDE.md` - Complete setup guide
+- `doc/MTA-STS-KUBERNETES.md` - Kubernetes-specific configuration
+- `doc/MTA-STS-TROUBLESHOOTING-403.md` - Troubleshooting HTTP 403 errors
+
 ## Legacy configuration
 
 Legacy configuration files from Postal v1 and v2 are still supported. If you wish to use a new configuration option that is not available in the legacy format, you will need to upgrade the file to version 2.

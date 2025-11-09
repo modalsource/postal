@@ -41,6 +41,8 @@ module Postal
     config.middleware.insert_before ActionDispatch::HostAuthorization, TrackingMiddleware
 
     config.hosts << Postal::Config.postal.web_hostname
+    # Allow mta-sts subdomains for MTA-STS policy serving
+    config.hosts << /\Amta-sts\./i
 
     unless Postal::Config.logging.rails_log_enabled?
       config.logger = Logger.new("/dev/null")
