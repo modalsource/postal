@@ -81,6 +81,27 @@
   %pre.codeBlock.u-margin= Postal::Config.dns.return_path_domain
 
 
+  - if Postal::Config.dns.dmarc_preferred_dns_entry.present?
+    %h3.pageContent__subTitle DMARC Record
+    - if @domain.dmarc_status == 'OK'
+      %p.pageContent__text.u-green.u-bold
+        %span.label.label--green Good
+        Your DMARC record looks good!
+    - elsif @domain.dmarc_status == 'Missing'
+      %p.pageContent__text.u-grey.u-bold
+        %span.label.label--grey Warning
+        There's no DMARC record for this domain. This is optional but we recommend adding it to improve deliverability.
+    - elsif !@domain.dmarc_status.nil?
+      %p.pageContent__text.u-orange.u-bold
+        %span.label.label--orange Warning
+        = @domain.dmarc_error
+
+    %p.pageContent__text
+      This is optional but we recommend adding this to improve deliverability and protect your domain from spoofing.
+      You should add a <b>TXT</b> record at <b>#{@domain.dmarc_record_name}</b> with the following content.
+    %pre.codeBlock.u-margin= @domain.dmarc_record
+
+
   %h3.pageContent__subTitle MX Records
   - if @domain.mx_status == 'OK'
     %p.pageContent__text.u-green.u-bold

@@ -5,7 +5,7 @@ require "resolv"
 module HasDNSChecks
 
   def dns_ok?
-    spf_status == "OK" && dkim_status == "OK" && %w[OK Missing].include?(mx_status) && %w[OK Missing].include?(return_path_status)
+    spf_status == "OK" && dkim_status == "OK" && %w[OK Missing].include?(mx_status) && %w[OK Missing].include?(return_path_status) && %w[OK Missing].include?(dmarc_status)
   end
 
   def dns_checked?
@@ -17,6 +17,7 @@ module HasDNSChecks
     check_dkim_record
     check_mx_records
     check_return_path_record
+    check_dmarc_record
     self.dns_checked_at = Time.now
     save!
     if source == :auto && !dns_ok? && owner.is_a?(Server)
@@ -32,7 +33,9 @@ module HasDNSChecks
         mx_status: mx_status,
         mx_error: mx_error,
         return_path_status: return_path_status,
-        return_path_error: return_path_error
+        return_path_error: return_path_error,
+        dmarc_status: dmarc_status,
+        dmarc_error: dmarc_error
       })
     end
     dns_ok?
@@ -147,6 +150,44 @@ module HasDNSChecks
 
   def check_return_path_record!
     check_return_path_record
+    save!
+  end
+
+  #
+  # DMARC
+  #
+
+  def check_dmarc_record
+    # Only check DMARC if a preferred DNS entry is configured
+    if Postal::Config.dns.dmarc_preferred_dns_entry.present?
+      dmarc_domain = "_dmarc.#{name}"
+      records = resolver.txt(dmarc_domain)
+      
+      if records.empty?
+        self.dmarc_status = "Missing"
+        self.dmarc_error = "No DMARC record exists for this domain at #{dmarc_domain}"
+      else
+        dmarc_records = records.grep(/\Av=DMARC1/)
+        if dmarc_records.empty?
+          self.dmarc_status = "Invalid"
+          self.dmarc_error = "A TXT record exists at #{dmarc_domain} but it doesn't contain a valid DMARC record (should start with v=DMARC1)"
+        elsif dmarc_records.first.strip == Postal::Config.dns.dmarc_preferred_dns_entry.strip
+          self.dmarc_status = "OK"
+          self.dmarc_error = nil
+        else
+          self.dmarc_status = "Invalid"
+          self.dmarc_error = "The DMARC record at #{dmarc_domain} does not match the preferred record. Please check it has been configured correctly."
+        end
+      end
+    else
+      # If no preferred entry is configured, mark as Missing (not checked)
+      self.dmarc_status = "Missing"
+      self.dmarc_error = nil
+    end
+  end
+
+  def check_dmarc_record!
+    check_dmarc_record
     save!
   end
 
