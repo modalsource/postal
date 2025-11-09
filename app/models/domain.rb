@@ -131,6 +131,14 @@ class Domain < ApplicationRecord
     "#{Postal::Config.dns.custom_return_path_prefix}.#{name}"
   end
 
+  def dmarc_record
+    Postal::Config.dns.dmarc_preferred_dns_entry
+  end
+
+  def dmarc_record_name
+    "_dmarc.#{name}"
+  end
+
   # Returns a DNSResolver instance that can be used to perform DNS lookups needed for
   # the verification and DNS checking for this domain.
   #

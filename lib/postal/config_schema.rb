@@ -368,6 +368,10 @@ module Postal
         description "The path to the resolv.conf file containing addresses for local nameservers"
         default "/etc/resolv.conf"
       end
+
+      string :dmarc_preferred_dns_entry do
+        description "The preferred DMARC DNS record to check against configured domains"
+      end
     end
 
     group :smtp do
