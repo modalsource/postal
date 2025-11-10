@@ -359,4 +359,87 @@ describe Domain do
       end
     end
   end
+
+  describe "#dmarc_record" do
+    it "returns the preferred DMARC DNS entry from configuration" do
+      allow(Postal::Config.dns).to receive(:dmarc_preferred_dns_entry).and_return("v=DMARC1; p=reject; rua=mailto:dmarc@example.com")
+      expect(domain.dmarc_record).to eq "v=DMARC1; p=reject; rua=mailto:dmarc@example.com"
+    end
+  end
+
+  describe "#dmarc_record_name" do
+    it "returns the DMARC record name" do
+      expect(domain.dmarc_record_name).to eq "_dmarc.#{domain.name}"
+    end
+  end
+
+  describe "#check_dmarc_record" do
+    let(:domain) { create(:domain) }
+
+    context "when no preferred DMARC entry is configured" do
+      before do
+        allow(Postal::Config.dns).to receive(:dmarc_preferred_dns_entry).and_return(nil)
+      end
+
+      it "sets status to Missing" do
+        domain.check_dmarc_record
+        expect(domain.dmarc_status).to eq "Missing"
+        expect(domain.dmarc_error).to be_nil
+      end
+    end
+
+    context "when preferred DMARC entry is configured" do
+      before do
+        allow(Postal::Config.dns).to receive(:dmarc_preferred_dns_entry).and_return("v=DMARC1; p=reject; rua=mailto:dmarc@example.com")
+      end
+
+      context "when no DMARC record exists" do
+        before do
+          allow(domain.resolver).to receive(:txt).with("_dmarc.#{domain.name}").and_return([])
+        end
+
+        it "sets status to Missing with error message" do
+          domain.check_dmarc_record
+          expect(domain.dmarc_status).to eq "Missing"
+          expect(domain.dmarc_error).to include("No DMARC record exists")
+        end
+      end
+
+      context "when DMARC record exists but is invalid" do
+        before do
+          allow(domain.resolver).to receive(:txt).with("_dmarc.#{domain.name}").and_return(["some random text"])
+        end
+
+        it "sets status to Invalid" do
+          domain.check_dmarc_record
+          expect(domain.dmarc_status).to eq "Invalid"
+          expect(domain.dmarc_error).to include("doesn't contain a valid DMARC record")
+        end
+      end
+
+      context "when DMARC record exists but doesn't match preferred" do
+        before do
+          allow(domain.resolver).to receive(:txt).with("_dmarc.#{domain.name}").and_return(["v=DMARC1; p=none"])
+        end
+
+        it "sets status to Invalid" do
+          domain.check_dmarc_record
+          expect(domain.dmarc_status).to eq "Invalid"
+          expect(domain.dmarc_error).to include("does not match the preferred record")
+        end
+      end
+
+      context "when DMARC record matches preferred entry" do
+        before do
+          allow(domain.resolver).to receive(:txt).with("_dmarc.#{domain.name}").and_return(["v=DMARC1; p=reject; rua=mailto:dmarc@example.com"])
+        end
+
+        it "sets status to OK" do
+          domain.check_dmarc_record
+          expect(domain.dmarc_status).to eq "OK"
+          expect(domain.dmarc_error).to be_nil
+        end
+      end
+    end
+  end
 end
