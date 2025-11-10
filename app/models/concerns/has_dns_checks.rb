@@ -199,6 +199,8 @@ module HasDNSChecks
 
   def check_dmarc_record!
     check_dmarc_record
+    save!
+  end
 
   #
   # MTA-STS
