@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_11_07_000001) do
+ActiveRecord::Schema[7.1].define(version: 2025_11_09_101656) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -109,6 +109,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_11_07_000001) do
     t.string "tls_rpt_email"
     t.string "tls_rpt_status"
     t.string "tls_rpt_error"
+    t.string "dmarc_status"
+    t.string "dmarc_error"
     t.index ["server_id"], name: "index_domains_on_server_id"
     t.index ["uuid"], name: "index_domains_on_uuid", length: 8
   end
