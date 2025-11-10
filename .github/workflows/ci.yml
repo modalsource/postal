@@ -131,6 +131,9 @@ jobs:
 
           REF="${GITHUB_REF#refs/heads/}"
           if [ -z "$REF" ]; then exit 1; fi
+          
+          # Sanitize branch name for Docker tag (replace / with -)
+          SAFE_REF="${REF//\//-}"
 
           VER="$(git describe --tags 2>/dev/null)"
           echo "version=${VER}" >> "$GITHUB_OUTPUT"
@@ -140,7 +143,7 @@ jobs:
           if [[ "$REF" == "main-modalsource" ]]; then
             echo "${IMAGE}:latest" >> "$GITHUB_OUTPUT"
           else
-            echo "${IMAGE}:branch-${REF}" >> "$GITHUB_OUTPUT"
+            echo "${IMAGE}:branch-${SAFE_REF}" >> "$GITHUB_OUTPUT"
           fi
           echo 'EOF' >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v4
