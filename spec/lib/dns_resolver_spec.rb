@@ -9,13 +9,16 @@ RSpec.describe DNSResolver do
   # but I do think that we'll benefit more from having a full E2E test here
   # so we'll test this using values which we know to be fairly static and
   # that are within our control.
+  #
+  # Note: These E2E tests are skipped in CI environments where external DNS
+  # resolution may not be available or reliable.
 
   describe "#a" do
-    it "returns a list of IP addresses" do
+    it "returns a list of IP addresses", skip: ENV["CI"] do
       expect(resolver.a("www.dnstest.postalserver.io").sort).to eq ["1.2.3.4", "2.3.4.5"]
     end
 
-    it "resolves a domain name containing an emoji" do
+    it "resolves a domain name containing an emoji", skip: ENV["CI"] do
       expect(resolver.a("☺.dnstest.postalserver.io").sort).to eq ["3.4.5.6"]
     end
 
@@ -25,7 +28,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns a list of IP addresses" do
+      it "returns a list of IP addresses", skip: ENV["CI"] do
         expect(resolver.a("www.dnstest.postalserver.io", raise_timeout_errors: true).sort).to eq ["1.2.3.4", "2.3.4.5"]
       end
 
@@ -39,7 +42,7 @@ RSpec.describe DNSResolver do
   end
 
   describe "#aaaa" do
-    it "returns a list of IP addresses" do
+    it "returns a list of IP addresses", skip: ENV["CI"] do
       expect(resolver.aaaa("www.dnstest.postalserver.io").sort).to eq ["2a00:67a0:a::1", "2a00:67a0:a::2"]
     end
 
@@ -49,7 +52,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns a list of IP addresses" do
+      it "returns a list of IP addresses", skip: ENV["CI"] do
         expect(resolver.aaaa("www.dnstest.postalserver.io", raise_timeout_errors: true).sort).to eq ["2a00:67a0:a::1", "2a00:67a0:a::2"]
       end
 
@@ -63,7 +66,7 @@ RSpec.describe DNSResolver do
   end
 
   describe "#txt" do
-    it "returns a list of TXT records" do
+    it "returns a list of TXT records", skip: ENV["CI"] do
       expect(resolver.txt("dnstest.postalserver.io").sort).to eq [
         "an example txt record",
         "another example",
@@ -76,7 +79,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns a list of TXT records" do
+      it "returns a list of TXT records", skip: ENV["CI"] do
         expect(resolver.txt("dnstest.postalserver.io", raise_timeout_errors: true).sort).to eq [
           "an example txt record",
           "another example",
@@ -93,7 +96,7 @@ RSpec.describe DNSResolver do
   end
 
   describe "#cname" do
-    it "returns a list of CNAME records" do
+    it "returns a list of CNAME records", skip: ENV["CI"] do
       expect(resolver.cname("cname.dnstest.postalserver.io")).to eq ["www.dnstest.postalserver.io"]
     end
 
@@ -103,7 +106,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns a list of CNAME records" do
+      it "returns a list of CNAME records", skip: ENV["CI"] do
         expect(resolver.cname("cname.dnstest.postalserver.io", raise_timeout_errors: true)).to eq ["www.dnstest.postalserver.io"]
       end
 
@@ -117,7 +120,7 @@ RSpec.describe DNSResolver do
   end
 
   describe "#mx" do
-    it "returns a list of MX records" do
+    it "returns a list of MX records", skip: ENV["CI"] do
       expect(resolver.mx("dnstest.postalserver.io")).to eq [
         [10, "mx1.dnstest.postalserver.io"],
         [20, "mx2.dnstest.postalserver.io"],
@@ -130,7 +133,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns a list of MX records" do
+      it "returns a list of MX records", skip: ENV["CI"] do
         expect(resolver.mx("dnstest.postalserver.io", raise_timeout_errors: true)).to eq [
           [10, "mx1.dnstest.postalserver.io"],
           [20, "mx2.dnstest.postalserver.io"],
@@ -147,7 +150,7 @@ RSpec.describe DNSResolver do
   end
 
   describe "#effective_ns" do
-    it "returns the nameserver names that are authoritative for the given domain" do
+    it "returns the nameserver names that are authoritative for the given domain", skip: ENV["CI"] do
       expect(resolver.effective_ns("postalserver.io").sort).to eq [
         "prestigious-honeybadger.katapultdns.com",
         "the-cake-is-a-lie.katapultdns.com",
@@ -160,7 +163,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns a list of NS records" do
+      it "returns a list of NS records", skip: ENV["CI"] do
         expect(resolver.effective_ns("postalserver.io", raise_timeout_errors: true).sort).to eq [
           "prestigious-honeybadger.katapultdns.com",
           "the-cake-is-a-lie.katapultdns.com",
@@ -177,7 +180,7 @@ RSpec.describe DNSResolver do
   end
 
   describe "#ip_to_hostname" do
-    it "returns the hostname for the given IP" do
+    it "returns the hostname for the given IP", skip: ENV["CI"] do
       expect(resolver.ip_to_hostname("151.252.1.100")).to eq "ns1.katapultdns.com"
     end
 
@@ -187,7 +190,7 @@ RSpec.describe DNSResolver do
     end
 
     context "when raise_timeout_errors is true" do
-      it "returns the hostname for the given IP" do
+      it "returns the hostname for the given IP", skip: ENV["CI"] do
         expect(resolver.ip_to_hostname("151.252.1.100", raise_timeout_errors: true)).to eq "ns1.katapultdns.com"
       end
 
@@ -201,7 +204,7 @@ RSpec.describe DNSResolver do
   end
 
   describe ".for_domain" do
-    it "finds the effective nameservers for a given domain and returns them" do
+    it "finds the effective nameservers for a given domain and returns them", skip: ENV["CI"] do
       resolver = described_class.for_domain("dnstest.postalserver.io")
       expect(resolver.nameservers.sort).to eq ["151.252.1.100", "151.252.2.100"]
     end
@@ -248,7 +251,7 @@ RSpec.describe DNSResolver do
   context "when using a resolver for a domain" do
     subject(:resolver) { described_class.for_domain("dnstest.postalserver.io") }
 
-    it "will not return domains that are not hosted on that server" do
+    it "will not return domains that are not hosted on that server", skip: ENV["CI"] do
       expect(resolver.a("example.com")).to eq []
     end
   end

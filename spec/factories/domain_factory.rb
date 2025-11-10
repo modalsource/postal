@@ -62,6 +62,7 @@ FactoryBot.define do
       dkim_status { "OK" }
       mx_status { "OK" }
       return_path_status { "OK" }
+      dmarc_status { "OK" }
     end
   end
 
