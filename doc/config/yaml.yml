@@ -177,6 +177,8 @@ smtp:
   from_name: Postal
   # The e-mail to use as the from address outgoing emails from Postal
   from_address: postal@example.com
+  # Disalbles sending emails via IPv6, only IPv4 will be used
+  disable_ipv6: false
 
 rails:
   # The Rails environment to run the application in
@@ -214,6 +216,20 @@ clamav:
   # The port of the ClamAV server
   port: 2000
 
+truemail:
+  # Enable Truemail for email address validation
+  enabled: false
+  # The host of the Truemail API server
+  host: 127.0.0.1
+  # The port of the Truemail API server
+  port: 9292
+  # Enable SSL for Truemail API connection
+  ssl: false
+  # Authentication token for Truemail API server
+  token: 
+  # Request timeout for Truemail API calls (seconds)
+  timeout: 10
+
 smtp_client:
   # The open timeout for outgoing SMTP connections
   open_timeout: 30
@@ -237,8 +253,8 @@ oidc:
   name: OIDC Provider
   # The OIDC issuer URL
   issuer: 
-  # Set pkce option to true if OIDC provider has this option
-  pkce: 
+  # Option to enable Proof Key for Code Exchange by OAuth Public Clients
+  pkce: false
   # The client ID for OIDC
   identifier: 
   # The client secret for OIDC

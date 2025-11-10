@@ -15,6 +15,7 @@ This document contains all the environment variables which are available for thi
 | `POSTAL_DEFAULT_SPAM_FAILURE_THRESHOLD` | Integer | The default threshold at which a message should be treated as spam failure | 20 |
 | `POSTAL_USE_LOCAL_NS_FOR_DOMAIN_VERIFICATION` | Boolean | Domain verification and checking usually checks with a domain's nameserver. Enable this to check with the server's local nameservers. | false |
 | `POSTAL_USE_RESENT_SENDER_HEADER` | Boolean | Append a Resend-Sender header to all outgoing e-mails | true |
+| `POSTAL_DEFAULT_DKIM_KEY_SIZE` | Integer | The default size for new DKIM keys | 1024 |
 | `POSTAL_SIGNING_KEY_PATH` | String | Path to the private key used for signing | $config-file-root/signing.key |
 | `POSTAL_SMTP_RELAYS` | Array of strings | An array of SMTP relays in the format of smtp://host:port | [] |
 | `POSTAL_TRUSTED_PROXIES` | Array of strings | An array of IP addresses to trust for proxying requests to Postal (in addition to localhost addresses) | [] |
@@ -81,6 +82,7 @@ This document contains all the environment variables which are available for thi
 | `SMTP_OPENSSL_VERIFY_MODE` | String | When using TLS, you can set how OpenSSL checks the certificate. Use 'none' for no certificate checking | peer |
 | `SMTP_FROM_NAME` | String | The name to use as the from name outgoing emails from Postal | Postal |
 | `SMTP_FROM_ADDRESS` | String | The e-mail to use as the from address outgoing emails from Postal | postal@example.com |
+| `SMTP_DISABLE_IPV6` | Boolean | Disalbles sending emails via IPv6, only IPv4 will be used | false |
 | `RAILS_ENVIRONMENT` | String | The Rails environment to run the application in | production |
 | `RAILS_SECRET_KEY` | String | The secret key used to sign and encrypt cookies and session data in the application |  |
 | `MTA_STS_DOMAINS` | String (comma-separated) | Additional domains to allow for MTA-STS policy serving. In production, these domains will be added to Rails `config.hosts` to allow public access to `/.well-known/mta-sts.txt`. Use comma-separated list for multiple domains (e.g., "mta-sts.domain1.com,mta-sts.domain2.com") |  |
@@ -96,6 +98,12 @@ This document contains all the environment variables which are available for thi
 | `CLAMAV_ENABLED` | Boolean | Enable ClamAV for message inspection | false |
 | `CLAMAV_HOST` | String | The host of the ClamAV server | 127.0.0.1 |
 | `CLAMAV_PORT` | Integer | The port of the ClamAV server | 2000 |
+| `TRUEMAIL_ENABLED` | Boolean | Enable Truemail for email address validation | false |
+| `TRUEMAIL_HOST` | String | The host of the Truemail API server | 127.0.0.1 |
+| `TRUEMAIL_PORT` | Integer | The port of the Truemail API server | 9292 |
+| `TRUEMAIL_SSL` | Boolean | Enable SSL for Truemail API connection | false |
+| `TRUEMAIL_TOKEN` | String | Authentication token for Truemail API server |  |
+| `TRUEMAIL_TIMEOUT` | Integer | Request timeout for Truemail API calls (seconds) | 10 |
 | `SMTP_CLIENT_OPEN_TIMEOUT` | Integer | The open timeout for outgoing SMTP connections | 30 |
 | `SMTP_CLIENT_READ_TIMEOUT` | Integer | The read timeout for outgoing SMTP connections | 30 |
 | `MIGRATION_WAITER_ENABLED` | Boolean | Wait for all migrations to run before starting a process | false |
