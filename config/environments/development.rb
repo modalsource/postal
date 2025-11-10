@@ -53,4 +53,10 @@ Rails.application.configure do
   # Use an evented file watcher to asynchronously detect changes in source code,
   # routes, locales, etc. This feature depends on the listen gem.
   # config.file_watcher = ActiveSupport::EventedFileUpdateChecker
+
+  # Allow all hosts in development for easy MTA-STS testing
+  # In production, hosts are restricted by config/application.rb to:
+  # - Postal::Config.postal.web_hostname
+  # - /\Amta-sts\./i (any subdomain starting with mta-sts.)
+  config.hosts.clear
 end

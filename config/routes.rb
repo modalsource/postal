@@ -12,12 +12,18 @@ Rails.application.routes.draw do
       match :verify, on: :member, via: [:get, :post]
       get :setup, on: :member
       post :check, on: :member
+      get :edit_security, on: :member
+      patch :update_security, on: :member
+      post :check_mta_sts_policy, on: :member
     end
     resources :servers, except: [:index] do
       resources :domains, only: [:index, :new, :create, :destroy] do
         match :verify, on: :member, via: [:get, :post]
         get :setup, on: :member
         post :check, on: :member
+        get :edit_security, on: :member
+        patch :update_security, on: :member
+        post :check_mta_sts_policy, on: :member
       end
       resources :track_domains do
         post :toggle_ssl, on: :member
@@ -96,6 +102,7 @@ Rails.application.routes.draw do
   end
 
   get ".well-known/jwks.json" => "well_known#jwks"
+  get ".well-known/mta-sts.txt" => "mta_sts#policy"
 
   get "ip" => "sessions#ip"
 

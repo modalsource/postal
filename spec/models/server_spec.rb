@@ -15,6 +15,7 @@
 #  outbound_spam_threshold            :decimal(8, 2)
 #  permalink                          :string(255)
 #  postmaster_address                 :string(255)
+#  priority                           :integer          default(0), unsigned
 #  privacy_mode                       :boolean          default(FALSE)
 #  raw_message_retention_days         :integer
 #  raw_message_retention_size         :integer
@@ -28,6 +29,7 @@
 #  suspended_at                       :datetime
 #  suspension_reason                  :string(255)
 #  token                              :string(255)
+#  truemail_enabled                   :boolean          default(FALSE)
 #  uuid                               :string(255)
 #  created_at                         :datetime
 #  updated_at                         :datetime

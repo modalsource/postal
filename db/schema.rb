@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2025_09_15_065902) do
+ActiveRecord::Schema[7.1].define(version: 2025_11_07_000001) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -99,6 +99,16 @@ ActiveRecord::Schema[7.0].define(version: 2025_09_15_065902) do
     t.integer "owner_id"
     t.string "dkim_identifier_string"
     t.boolean "use_for_any"
+    t.boolean "mta_sts_enabled", default: false
+    t.string "mta_sts_mode", limit: 20, default: "testing"
+    t.integer "mta_sts_max_age", default: 86400
+    t.text "mta_sts_mx_patterns"
+    t.string "mta_sts_status"
+    t.string "mta_sts_error"
+    t.boolean "tls_rpt_enabled", default: false
+    t.string "tls_rpt_email"
+    t.string "tls_rpt_status"
+    t.string "tls_rpt_error"
     t.index ["server_id"], name: "index_domains_on_server_id"
     t.index ["uuid"], name: "index_domains_on_uuid", length: 8
   end
@@ -252,11 +262,11 @@ ActiveRecord::Schema[7.0].define(version: 2025_09_15_065902) do
     t.boolean "log_smtp_data", default: false
     t.boolean "privacy_mode", default: false
     t.boolean "truemail_enabled", default: false
+    t.integer "priority", limit: 2, default: 0, unsigned: true
     t.index ["organization_id"], name: "index_servers_on_organization_id"
     t.index ["permalink"], name: "index_servers_on_permalink", length: 6
     t.index ["token"], name: "index_servers_on_token", length: 6
     t.index ["uuid"], name: "index_servers_on_uuid", length: 8
-    t.integer "priority", limit: 2, default: 0, unsigned: true
   end
 
   create_table "smtp_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|

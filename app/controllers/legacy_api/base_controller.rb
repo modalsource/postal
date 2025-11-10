@@ -27,7 +27,6 @@ module LegacyAPI
   #     returned JSON.
   class BaseController < ActionController::Base
 
-    skip_before_action :set_browser_id
     skip_before_action :verify_authenticity_token
 
     before_action :start_timer

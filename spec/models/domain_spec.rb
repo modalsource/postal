@@ -11,6 +11,12 @@
 #  dkim_status            :string(255)
 #  dns_checked_at         :datetime
 #  incoming               :boolean          default(TRUE)
+#  mta_sts_enabled        :boolean          default(FALSE)
+#  mta_sts_error          :string(255)
+#  mta_sts_max_age        :integer          default(86400)
+#  mta_sts_mode           :string(20)       default("testing")
+#  mta_sts_mx_patterns    :text(65535)
+#  mta_sts_status         :string(255)
 #  mx_error               :string(255)
 #  mx_status              :string(255)
 #  name                   :string(255)
@@ -20,6 +26,10 @@
 #  return_path_status     :string(255)
 #  spf_error              :string(255)
 #  spf_status             :string(255)
+#  tls_rpt_email          :string(255)
+#  tls_rpt_enabled        :boolean          default(FALSE)
+#  tls_rpt_error          :string(255)
+#  tls_rpt_status         :string(255)
 #  use_for_any            :boolean
 #  uuid                   :string(255)
 #  verification_method    :string(255)

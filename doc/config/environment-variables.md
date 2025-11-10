@@ -83,6 +83,7 @@ This document contains all the environment variables which are available for thi
 | `SMTP_FROM_ADDRESS` | String | The e-mail to use as the from address outgoing emails from Postal | postal@example.com |
 | `RAILS_ENVIRONMENT` | String | The Rails environment to run the application in | production |
 | `RAILS_SECRET_KEY` | String | The secret key used to sign and encrypt cookies and session data in the application |  |
+| `MTA_STS_DOMAINS` | String (comma-separated) | Additional domains to allow for MTA-STS policy serving. In production, these domains will be added to Rails `config.hosts` to allow public access to `/.well-known/mta-sts.txt`. Use comma-separated list for multiple domains (e.g., "mta-sts.domain1.com,mta-sts.domain2.com") |  |
 | `RSPAMD_ENABLED` | Boolean | Enable rspamd for message inspection | false |
 | `RSPAMD_HOST` | String | The hostname of the rspamd server | 127.0.0.1 |
 | `RSPAMD_PORT` | Integer | The port of the rspamd server | 11334 |
