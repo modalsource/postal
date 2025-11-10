@@ -18,6 +18,7 @@ services:
       WAIT_FOR_TIMEOUT: 90
       WAIT_FOR_TARGETS: |-
         mariadb:3306
+      CI: "true"
 
   mariadb:
     image: mariadb
