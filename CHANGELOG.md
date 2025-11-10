@@ -2,6 +2,67 @@
 
 This file contains all the latest changes and updates to Postal.
 
+## [3.5.0](https://github.com/modalsource/postal/compare/3.4.0...3.5.0) (2025-11-10)
+
+
+### Features
+
+* add comprehensive MTA-STS configuration and setup guide ([7a0f509](https://github.com/modalsource/postal/commit/7a0f50940915dcf8829337c7bab1bf5c9321c3e2))
+* add priority field to server model validation and update related job processing logic ([0818faa](https://github.com/modalsource/postal/commit/0818faa900651ea6536303eff09017a16d5c1c43))
+* add workflow to sync upstream pull requests automatically ([0d19f1e](https://github.com/modalsource/postal/commit/0d19f1e6b64758015f0a2ba7b7f1a8e1c63e814a))
+* add workflow to sync upstream pull requests automatically ([7376fdb](https://github.com/modalsource/postal/commit/7376fdb9cbb83ff5095c1fc562478ec7a14dc90a))
+* add workflow to sync upstream pull requests automatically ([b52332d](https://github.com/modalsource/postal/commit/b52332d6866f60696449573774183b99e68a1187))
+* add workflow to sync upstream pull requests automatically ([bb3ba2b](https://github.com/modalsource/postal/commit/bb3ba2bd6ae96133b674a0f3d6b43ff96792e0e4))
+* add workflow to sync upstream pull requests automatically ([8feccfc](https://github.com/modalsource/postal/commit/8feccfc7cb8d0d1a6a4a172666497bb6cf55b9c4))
+* add workflow to sync upstream pull requests automatically ([546ee24](https://github.com/modalsource/postal/commit/546ee24c71925200d4b7af8b040b0a4667b6e812))
+* add workflow to sync upstream pull requests automatically ([d9c8644](https://github.com/modalsource/postal/commit/d9c864476b9f0b01385674cd09c56acca3d427e0))
+* add workflow to sync upstream pull requests automatically ([37200ac](https://github.com/modalsource/postal/commit/37200ac8c6c75fe6db3aa7e53fc094121f908eee))
+* add workflow to sync upstream pull requests automatically ([70a8e50](https://github.com/modalsource/postal/commit/70a8e503a3ab548582bc74809406572b4202f6d5))
+* add workflow to sync upstream pull requests automatically ([27cf9f9](https://github.com/modalsource/postal/commit/27cf9f9fb393fd0512317f911bbbf5cab9365746))
+* add workflow to sync upstream pull requests automatically ([fb35547](https://github.com/modalsource/postal/commit/fb355478e86d5280840b1637393e01be07d39d0b))
+* add workflow to sync upstream pull requests automatically ([e74f3e5](https://github.com/modalsource/postal/commit/e74f3e50ce07e64d403d19b620a721e1a5b56f63))
+* add workflow to sync upstream pull requests automatically ([f001870](https://github.com/modalsource/postal/commit/f001870e2033fa49219da29f45f7e4bd66f238e2))
+* add workflow to sync upstream pull requests automatically ([e95e972](https://github.com/modalsource/postal/commit/e95e972eb40c277825bc6ce28d2ca7cd09506573))
+* add workflow to sync upstream pull requests automatically ([265d425](https://github.com/modalsource/postal/commit/265d425f358fcb89c6970a972611ca2572a403a9))
+* add workflow to sync upstream pull requests automatically ([e72b918](https://github.com/modalsource/postal/commit/e72b918fea23f1584a92762ee74881b4a39b996b))
+* add workflow to sync upstream pull requests automatically ([2b4e9f0](https://github.com/modalsource/postal/commit/2b4e9f0ee45fe296b9ee627d97069f4a45098857))
+* enhance MTA-STS and TLS-RPT management UI with improved checkbox styling and user feedback ([619223c](https://github.com/modalsource/postal/commit/619223c34dd119613434fa262295a72512cbeb53))
+* enhance MTA-STS policy handling and improve logging for public endpoint ([cde7a90](https://github.com/modalsource/postal/commit/cde7a90a1047bb7b5578ff0a876e73a535802070))
+* implement MTA-STS and TLS-RPT management for enhanced email security ([ada5157](https://github.com/modalsource/postal/commit/ada51573bb742f883261869b0d375c5c377405e6))
+* update CI workflow to trigger on pull requests and adjust build push behavior ([6766684](https://github.com/modalsource/postal/commit/676668442863ecf961a405e0e564219b969060e3))
+
+
+### Bug Fixes
+
+* **health_server:** use rackup handler instead of rack handler ([7c47422](https://github.com/modalsource/postal/commit/7c47422c865e738c4d6af0fed1cca4405288341f))
+* save state after checking DMARC record ([ed9b92b](https://github.com/modalsource/postal/commit/ed9b92bdbc23b82002e644cfa0f4ee818c893f68))
+* typo in process logging ([#3212](https://github.com/modalsource/postal/issues/3212)) ([b7e5232](https://github.com/modalsource/postal/commit/b7e5232e077b3c9b7a999dcb6676fba0ec61458e))
+* update url for v2 config ([#3225](https://github.com/modalsource/postal/issues/3225)) ([e00098b](https://github.com/modalsource/postal/commit/e00098b8003cf37f2708f536871b3ade377aed2d))
+
+
+### Documentation
+
+* **process.rb:** add help about time unit used by metric ([#3339](https://github.com/modalsource/postal/issues/3339)) ([f5325c4](https://github.com/modalsource/postal/commit/f5325c49ff1152ad53eaaec98717ad3412d379ae))
+
+
+### Miscellaneous Chores
+
+* **deps:** upgrade puma, net-imap and other deps ([c03c44b](https://github.com/modalsource/postal/commit/c03c44b442a29aa9881c1e1aae60bead9776a6b6))
+* **dockerfile:** reduce container size ([86de372](https://github.com/modalsource/postal/commit/86de372382bd62bdd5d1372254f8817b0360bd56))
+* remove version from docker-compose.yml ([c78000c](https://github.com/modalsource/postal/commit/c78000ca8f2998aa04648f465060768db6467de6))
+* upgrade resolv to 0.6.2 ([d00d978](https://github.com/modalsource/postal/commit/d00d978872a96369544303d08f6a9d11cdf56b62))
+* upgrade to rails 7.1 and ruby 3.4 ([#3457](https://github.com/modalsource/postal/issues/3457)) ([ab6d443](https://github.com/modalsource/postal/commit/ab6d4430baa33a05f1aa66e776cc2a5bcaa0ede8))
+* upgrade uri gem to 1.0.3 ([f193b8e](https://github.com/modalsource/postal/commit/f193b8e77fc096382ab7aaa6a2c29641b4cb12df))
+
+
+### Continuous Integration
+
+* add GITHUB_TOKEN environment variable for consistency in CI configuration ([2bb3961](https://github.com/modalsource/postal/commit/2bb39617b9c230049a09e75c24a4cd24ab202f80))
+* change Docker build target from 'ci' to 'full' in CI configuration ([c185d08](https://github.com/modalsource/postal/commit/c185d084639ed6d6f4020d2093024769d64a3245))
+* replace GITHUB_TOKEN with REPO_ACCESS_TOKEN in CI configuration ([d69d7b4](https://github.com/modalsource/postal/commit/d69d7b4b781f694462e09243c94dc9df47cc3a3d))
+* update Docker actions to version 3 and add truemail-client gem ([1ef1030](https://github.com/modalsource/postal/commit/1ef1030b7011d87af295e1c918979455f265a60c))
+* update permissions for GitHub Actions workflow ([68dd5cc](https://github.com/modalsource/postal/commit/68dd5cc37d6291315080144596c65ce8e363e866))
+
 ## [3.4.0](https://github.com/modalsource/postal/compare/3.3.4...3.4.0) (2025-07-17)
 
 
