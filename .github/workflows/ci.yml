@@ -64,7 +64,12 @@ jobs:
       - run: docker compose pull
         env:
           POSTAL_IMAGE: ghcr.io/modalsource/postal:ci-${{ github.sha }}
-      - run: docker compose run postal sh -c 'bundle exec rspec'
+      - run: docker compose run --rm postal sh -c 'bundle exec rspec'
+        env:
+          POSTAL_IMAGE: ghcr.io/modalsource/postal:ci-${{ github.sha }}
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
         env:
           POSTAL_IMAGE: ghcr.io/modalsource/postal:ci-${{ github.sha }}
 
