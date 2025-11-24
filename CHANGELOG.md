@@ -2,6 +2,13 @@
 
 This file contains all the latest changes and updates to Postal.
 
+## [3.5.2](https://github.com/modalsource/postal/compare/3.5.1...3.5.2) (2025-11-24)
+
+
+### Bug Fixes
+
+* add documentation configuration options for DKIM key size and Truemail integration ([c993a9e](https://github.com/modalsource/postal/commit/c993a9ec1f3f3490b8343fad94d18c113e906b6a))
+
 ## [3.5.1](https://github.com/modalsource/postal/compare/v3.5.0...3.5.1) (2025-11-10)
 
 
