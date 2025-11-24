@@ -2,6 +2,13 @@
 
 This file contains all the latest changes and updates to Postal.
 
+## [3.6.0](https://github.com/modalsource/postal/compare/3.5.2...3.6.0) (2025-11-24)
+
+
+### Features
+
+* add POSTAL_BATCH_QUEUED_MESSAGES_LIMIT environment variable for batch size configuration ([8c5bc6f](https://github.com/modalsource/postal/commit/8c5bc6f7fdc42550ca0484c8d0da86445ed6d73e))
+
 ## [3.5.2](https://github.com/modalsource/postal/compare/3.5.1...3.5.2) (2025-11-24)
 
 
