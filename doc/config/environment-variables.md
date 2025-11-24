@@ -21,6 +21,7 @@ This document contains all the environment variables which are available for thi
 | `POSTAL_TRUSTED_PROXIES` | Array of strings | An array of IP addresses to trust for proxying requests to Postal (in addition to localhost addresses) | [] |
 | `POSTAL_QUEUED_MESSAGE_LOCK_STALE_DAYS` | Integer | The number of days after which to consider a lock as stale. Messages with stale locks will be removed and not retried. | 1 |
 | `POSTAL_BATCH_QUEUED_MESSAGES` | Boolean | When enabled queued messages will be de-queued in batches based on their destination | true |
+| `POSTAL_BATCH_QUEUED_MESSAGES_LIMIT` | Integer | When de-queuing in batches, use this limit for the batch size | 100 |
 | `WEB_SERVER_DEFAULT_PORT` | Integer | The default port the web server should listen on unless overriden by the PORT environment variable | 5000 |
 | `WEB_SERVER_DEFAULT_BIND_ADDRESS` | String | The default bind address the web server should listen on unless overriden by the BIND_ADDRESS environment variable | 127.0.0.1 |
 | `WEB_SERVER_MAX_THREADS` | Integer | The maximum number of threads which can be used by the web server | 5 |
@@ -85,7 +86,6 @@ This document contains all the environment variables which are available for thi
 | `SMTP_DISABLE_IPV6` | Boolean | Disalbles sending emails via IPv6, only IPv4 will be used | false |
 | `RAILS_ENVIRONMENT` | String | The Rails environment to run the application in | production |
 | `RAILS_SECRET_KEY` | String | The secret key used to sign and encrypt cookies and session data in the application |  |
-| `MTA_STS_DOMAINS` | String (comma-separated) | Additional domains to allow for MTA-STS policy serving. In production, these domains will be added to Rails `config.hosts` to allow public access to `/.well-known/mta-sts.txt`. Use comma-separated list for multiple domains (e.g., "mta-sts.domain1.com,mta-sts.domain2.com") |  |
 | `RSPAMD_ENABLED` | Boolean | Enable rspamd for message inspection | false |
 | `RSPAMD_HOST` | String | The hostname of the rspamd server | 127.0.0.1 |
 | `RSPAMD_PORT` | Integer | The port of the rspamd server | 11334 |
