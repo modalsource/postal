@@ -54,25 +54,319 @@ Il sistema copre l'intero ciclo di vita di un IP address nel contesto della repu
 
 ## 2. Glossario e Definizioni
 
-[SEZIONE DA INTEGRARE - Vedi dettagli separati]
+### 2.1 Terminologia
+
+| Termine | Definizione |
+|---------|-------------|
+| **Blacklist** | Lista di IP address bloccati da un mail provider per invio spam, phishing o altre violazioni delle policy |
+| **RBL (Realtime Blackhole List)** | Database DNS-based di IP blacklistati, consultabile pubblicamente (es. Spamhaus, SORBS) |
+| **Greylist** | Tecnica temporanea di deferral delle email; non è una blacklist permanente |
+| **Reputation** | Punteggio di affidabilità di un IP basato su comportamento storico di invio |
+| **Signal** | Evento grezzo estratto da una risposta SMTP che indica possibile blacklist |
+| **Evidence** | Aggregazione di più signal che supporta una decisione di cambio stato |
+| **Confidence Score** | Valore 0-1 che rappresenta la certezza che un IP sia blacklistato |
+| **Quarantine** | Stato di esclusione temporanea di un IP dal pool attivo |
+| **Delist** | Processo di rimozione di un IP da una blacklist (naturale o tramite richiesta) |
+| **Probe** | Tentativo controllato di verifica dello stato di un IP (invio test o query RBL) |
+| **Pool Health** | Percentuale di IP attivi rispetto al totale del pool |
+| **Flapping** | Oscillazione rapida tra stati (es. ACTIVE ↔ QUARANTINED) da evitare |
+
+### 2.2 Stati del Ciclo di Vita IP
+
+Un IP address può trovarsi in uno dei seguenti stati:
+
+```
+┌─────────┐
+│ ACTIVE  │  ← Stato iniziale: IP usabile per invio
+└────┬────┘
+     │ (monitoring threshold exceeded)
+     ▼
+┌──────────┐
+│MONITORING│  ← Segnali anomali rilevati, sotto osservazione
+└────┬─────┘
+     │ (suspect threshold exceeded)
+     ▼
+┌─────────┐
+│ SUSPECT │  ← Segnali significativi, probabile blacklist
+└────┬────┘
+     │ (quarantine threshold exceeded)
+     ▼
+┌────────────┐
+│QUARANTINED │  ← IP escluso dall'uso, in attesa di verifica
+└─────┬──────┘
+      │ (delist check scheduled)
+      ▼
+┌─────────────┐
+│DELIST_CHECK │  ← Verifica in corso dello stato blacklist
+└──────┬──────┘
+       │
+       ├─ (verification successful) ──→ ACTIVE
+       │
+       ├─ (verification failed) ──→ QUARANTINED (backoff)
+       │
+       └─ (verification inconclusive) ──→ MANUAL_REVIEW
+                                              │
+                                              └─ (human decision) ──→ ACTIVE | QUARANTINED
+```
+
+### 2.3 Definizione degli Stati
+
+#### ACTIVE
+- **Descrizione**: IP in pieno utilizzo, nessun segnale di problemi
+- **Comportamento**: Selezionabile da `IPAddress.select_by_priority`
+- **Transizione a MONITORING**: Rilevati segnali anomali (sotto soglia critica)
+
+#### MONITORING
+- **Descrizione**: IP ancora usabile ma sotto osservazione aumentata
+- **Comportamento**: Selezionabile, ma con logging dettagliato e confidence tracking
+- **Transizione a SUSPECT**: Accumulo di segnali blacklist (confidence > 0.70)
+- **Transizione a ACTIVE**: Segnali rientrati, periodo di osservazione positivo
+
+#### SUSPECT
+- **Descrizione**: Forte sospetto di blacklist, uso limitato consigliato
+- **Comportamento**: Selezionabile solo se nessun altro IP disponibile (degraded mode)
+- **Transizione a QUARANTINED**: Soglia critica superata (confidence > 0.80)
+- **Transizione a MONITORING**: Segnali diminuiti, possibile falso positivo
+
+#### QUARANTINED
+- **Descrizione**: IP confermato o altamente sospetto di blacklist, non utilizzabile
+- **Comportamento**: **Escluso** da selezione automatica, nessun invio
+- **Durata minima**: Configurabile (default: 24h)
+- **Transizione a DELIST_CHECK**: Dopo durata minima, inizia verifica automatica
+- **Transizione manuale a ACTIVE**: Solo tramite override operatore (logged)
+
+#### DELIST_CHECK
+- **Descrizione**: Verifica automatica in corso per determinare se IP è stato delistato
+- **Comportamento**: Non utilizzabile, in attesa risultato probe/query
+- **Transizione a ACTIVE**: Verifica positiva (IP delistato con successo)
+- **Transizione a QUARANTINED**: Verifica negativa (IP ancora blacklistato) con backoff
+- **Transizione a MANUAL_REVIEW**: Verifica inconclusiva o errori
+
+#### MANUAL_REVIEW
+- **Descrizione**: Sistema non può determinare stato, richiede intervento umano
+- **Comportamento**: Non utilizzabile, alert critico generato
+- **Transizione**: Solo manuale da operatore con motivazione obbligatoria
+
+### 2.4 Tipi di Signal
+
+| Signal Type | Descrizione | Esempi SMTP | Confidence Base |
+|-------------|-------------|-------------|-----------------|
+| **HARD_BLACKLIST** | Menzione esplicita di RBL o block permanente | `550 blocked using zen.spamhaus.org` | 0.95 |
+| **SOFT_BLACKLIST** | Rate limiting o reputazione bassa IP-specific | `421 too many connections from your IP` | 0.70 |
+| **REPUTATION_ISSUE** | Segnali di spam score o complaints | `550 sender reputation too low` | 0.75 |
+| **GREYLIST** | Deferral temporaneo (non è blacklist) | `451 Greylisted, try again later` | 0.10 |
+| **UNKNOWN** | Pattern non classificabile, da investigare | Messaggi ambigui | 0.50 |
+
+### 2.5 Metriche Chiave
+
+- **Error Rate**: Percentuale di delivery failure (HardFail + SoftFail) su totale tentativi
+- **Confidence Score**: Probabilità aggregata che un IP sia blacklistato (0.0 - 1.0)
+- **Signal Density**: Numero di signal per unità di tempo (signal/min)
+- **Provider Diversity**: Numero di provider distinti che segnalano problemi
+- **Pool Health Ratio**: IP attivi / IP totali nel pool
+- **Quarantine Duration**: Tempo medio di permanenza in quarantena
+- **False Positive Rate**: IP quarantined erroneamente / totale quarantine
+- **Delist Success Rate**: Verifiche delist riuscite / totale verifiche
 
 ---
 
 ## 3. Architettura Proposta
 
-[SEZIONE DA INTEGRARE - Vedi dettagli separati]
+### 3.1 Overview
+
+Il sistema estende Postal con 5 componenti principali che lavorano in pipeline:
+
+1. **Signal Capture** (DetectorService) - Analizza risposte SMTP real-time
+2. **Aggregation & Analysis** (MonitorService) - Aggrega signals, calcola confidence
+3. **State Management** (QuarantineService) - Gestisce transizioni e enforcement
+4. **Delist Verification** (DelistVerifierService) - Verifica automatica recovery
+5. **Notification** (NotificationService) - Alert multi-canale
+
+### 3.2 Database Schema
+
+6 nuove tabelle integrate nel database Postal:
+
+| Tabella | Scopo | Volume | Retention |
+|---------|-------|--------|-----------|
+| `ip_address_statuses` | Stato corrente ogni IP | Low (1 per IP) | Permanente |
+| `ip_blacklist_signals` | Eventi grezzi SMTP | High (1000s/hour) | 90 giorni |
+| `ip_blacklist_patterns` | Config pattern detection | Low (~50 records) | Permanente |
+| `ip_blacklist_evidence` | Aggregazioni analitiche | Medium (~100s/day) | 180 giorni |
+| `ip_probe_attempts` | Log verifiche delist | Low (~10s/day) | 90 giorni |
+| `ip_blacklist_audit_logs` | Compliance audit trail | Low (~20s/day) | 2 anni |
+
+**Relazioni chiave:**
+- `IPAddress` 1:1 `IPAddressStatus`
+- `IPAddress` 1:N `IPBlacklistSignal`, `IPBlacklistEvidence`, `IPProbeAttempt`
+
+### 3.3 Integration Points
+
+**Hook in Delivery Flow:**
+```ruby
+# app/lib/message_dequeuer/outgoing_message_processor.rb
+after_delivery :capture_blacklist_signal
+
+def capture_blacklist_signal
+  return unless @result.type.in?(["HardFail", "SoftFail"])
+  IPBlacklist::DetectorService.call(...)
+end
+```
+
+**IP Selection Override:**
+```ruby
+# app/models/ip_address.rb
+scope :usable_for_sending, -> {
+  left_joins(:blacklist_status)
+    .where("status IN (?) OR status IS NULL", ["active", "monitoring"])
+}
+```
+
+**Background Jobs:**
+- `IPBlacklistMonitorJob` - ogni 5 min (aggregazione)
+- `IPDelistCheckJob` - ogni 1h (verifiche)
+- `IPBlacklistCleanupJob` - daily (pruning)
+
+### 3.4 Flusso End-to-End
+
+```
+SMTP Error (550 RBL) → DetectorService → Signal Created
+  ↓ (5 min)
+MonitorService → Aggrega Signals → Calcola Confidence → Evidence
+  ↓
+QuarantineService → Transizione Stato → Enforcement → Notification
+  ↓ (24h min quarantine)
+DelistVerifierService → Probe Strategies → Success/Fail
+  ↓
+Return to ACTIVE o Extended Quarantine
+```
+
+**Dettagli implementativi completi**: Vedi sezioni 6 (Quarantine), 7 (Delist), 9 (Data Model), 10 (Components).
 
 ---
 
 ## 4. Detection Logic - Raccolta Segnali
 
-[SEZIONE DA INTEGRARE - Vedi dettagli separati]
+### 4.1 Principio di Funzionamento
+
+Ogni delivery con stato `HardFail` o `SoftFail` viene analizzata in real-time dal **DetectorService** che:
+
+1. Applica pattern matching su codice SMTP e messaggio
+2. Classifica il tipo di errore (blacklist vs recipient invalid vs quota)
+3. Calcola confidence score basato su pattern matched
+4. Crea record `IPBlacklistSignal` se rilevante
+
+### 4.2 Pattern Matching Engine
+
+**Configurabile via tabella `ip_blacklist_patterns`:**
+
+| Pattern Type | Esempio Regex Message | Confidence |
+|--------------|----------------------|------------|
+| HARD_BLACKLIST | `(zen\.spamhaus\.org\|spamhaus)` | 0.95 |
+| SOFT_BLACKLIST | `too many.*from.*IP` | 0.70 |
+| REPUTATION_ISSUE | `IP.*reputation.*low` | 0.75 |
+| EXCLUSION | `recipient.*not found` | 0.0 (skip) |
+
+**Pattern predefiniti inclusi per:**
+- RBL major: Spamhaus, Barracuda, SpamCop, SORBS
+- IP-specific blocks
+- Rate limiting IP-based
+- Reputation issues
+- Exclusion patterns (recipient errors, quota, content filters)
+
+**Supporto multi-lingua:** Pattern con varianti IT, FR, DE, ES per messaggi comuni.
+
+### 4.3 Signal Enrichment
+
+Ogni signal include metadata:
+- Pattern matched (ID + name)
+- Provider domain
+- SMTP code + enhanced code
+- RBL names detected (extracted from message)
+- Confidence score
+- Timestamp precise
+
+### 4.4 False Positive Mitigation
+
+- **Exclusion patterns**: Errori non-IP esplicitamente esclusi
+- **Context awareness**: Distingue spike da pattern persistente
+- **Feedback loop**: Operatori possono mark signals come false positive
+- **Confidence decay**: Segnali vecchi pesano meno
+
+**Performance:** Signal capture < 50ms, non-blocking, circuit breaker su errori.
+
+**Dettagli implementativi completi**: Vedi sezione 10.1 (DetectorService code).
 
 ---
 
 ## 5. Decisional Logic - Aggregazione e Scoring
 
-[SEZIONE DA INTEGRARE - Vedi dettagli separati]
+### 5.1 Time Windows
+
+Il sistema analizza signals su 3 finestre temporali:
+
+| Window | Durata | Scopo |
+|--------|--------|-------|
+| **Short** | 15 min | Detection rapida blacklist acute |
+| **Medium** | 1h | Trend consolidamento |
+| **Long** | 24h | Valutazione reputazione globale |
+
+### 5.2 Confidence Score Algorithm
+
+Formula base:
+```
+confidence = weighted_avg(signals) × diversity_boost × recency_weight × (1 - noise_penalty)
+```
+
+**Componenti:**
+
+1. **Weighted Average**: Signals pesati per tipo (hard=1.0, soft=0.7, reputation=0.5)
+2. **Diversity Boost**: 
+   - 1 provider → 1.0x
+   - 2 provider → 1.15x
+   - 3 provider → 1.30x
+   - 4+ provider → 1.50x
+3. **Recency Weight**: Decay esponenziale, segnali recenti pesano di più
+4. **Noise Penalty**: Max 20% penalty per segnali "unknown" o low-confidence
+
+**Esempio:**
+- 3 hard signals (conf 0.95) + 1 soft (0.70) da 3 provider diversi in 10 min
+- Base: 0.88, Diversity: ×1.30, Recency: ×0.95, Noise: -0
+- **Final confidence: 1.09 → capped a 1.0**
+
+### 5.3 State Transition Thresholds
+
+| From → To | Condizioni |
+|-----------|-----------|
+| ACTIVE → MONITORING | min_signals=1, confidence≥0.50, cooldown=5min |
+| MONITORING → SUSPECT | min_signals=2, hard≥1, confidence≥0.70, cooldown=10min |
+| SUSPECT → QUARANTINED | min_signals=3, hard≥2, confidence≥0.80, providers≥2, cooldown=30min |
+| QUARANTINED → DELIST_CHECK | min_duration=24h |
+
+**Tutte le soglie sono configurabili** via YAML config.
+
+### 5.4 Anti-Flapping Mechanisms
+
+- **Cooldown periods**: Minimo tempo tra transizioni stesso IP
+- **Hysteresis**: Soglie diverse per salita (0.80) e discesa (0.50)
+- **Consecutive confirmation**: Certe transizioni richiedono conferma su 2 cicli
+- **Exponential backoff**: Re-quarantine usa durata crescente (1.5x)
+
+### 5.5 MonitorService Flow
+
+```ruby
+ogni 5 minuti:
+  per ogni IP con signals recenti:
+    raccogliere signals(short, medium, long windows)
+    calcolare confidence(short, medium, long)
+    determinare raccomandazione stato
+    se raccomandazione != stato corrente:
+      if cooldown_elapsed:
+        eseguire transizione
+        creare evidence record
+        notificare
+```
+
+**Dettagli implementativi completi**: Vedi sezione 10.2 (MonitorService code) e 6 (QuarantineService).
 
 ---
 
