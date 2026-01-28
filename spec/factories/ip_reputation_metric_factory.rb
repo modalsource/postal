@@ -5,12 +5,17 @@
 # Table name: ip_reputation_metrics
 #
 #  id                   :integer          not null, primary key
+#  auth_success_rate    :decimal(10, 4)
 #  bounce_rate          :integer          default(0)
 #  bounced_count        :integer          default(0)
+#  complaint_rate       :decimal(10, 6)
 #  delivered_count      :integer          default(0)
 #  delivery_rate        :integer          default(0)
 #  destination_domain   :string(255)
 #  hard_fail_count      :integer          default(0)
+#  metadata             :text(65535)
+#  metric_type          :string(255)
+#  metric_value         :decimal(10, 4)
 #  period               :string(255)      default("daily"), not null
 #  period_date          :date             not null
 #  reputation_score     :integer          default(100)
@@ -19,6 +24,7 @@
 #  soft_fail_count      :integer          default(0)
 #  spam_complaint_count :integer          default(0)
 #  spam_rate            :integer          default(0)
+#  trap_hits            :integer          default(0)
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  ip_address_id        :integer          not null
@@ -26,8 +32,10 @@
 # Indexes
 #
 #  index_ip_reputation_metrics_on_ip_address_id     (ip_address_id)
+#  index_ip_reputation_metrics_on_metric_type       (metric_type)
 #  index_ip_reputation_metrics_on_period_date       (period_date)
 #  index_ip_reputation_metrics_on_reputation_score  (reputation_score)
+#  index_ip_reputation_on_ip_type_date              (ip_address_id,metric_type,period_date)
 #  index_reputation_on_ip_dest_period               (ip_address_id,destination_domain,period,period_date) UNIQUE
 #
 # Foreign Keys

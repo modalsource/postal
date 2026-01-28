@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_01_28_085300) do
+ActiveRecord::Schema[7.1].define(version: 2026_01_28_100916) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -246,8 +246,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_01_28_085300) do
     t.integer "reputation_score", default: 100
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "metric_type"
+    t.decimal "metric_value", precision: 10, scale: 4
+    t.decimal "complaint_rate", precision: 10, scale: 6
+    t.decimal "auth_success_rate", precision: 10, scale: 4
+    t.integer "trap_hits", default: 0
+    t.text "metadata"
     t.index ["ip_address_id", "destination_domain", "period", "period_date"], name: "index_reputation_on_ip_dest_period", unique: true
+    t.index ["ip_address_id", "metric_type", "period_date"], name: "index_ip_reputation_on_ip_type_date"
     t.index ["ip_address_id"], name: "index_ip_reputation_metrics_on_ip_address_id"
+    t.index ["metric_type"], name: "index_ip_reputation_metrics_on_metric_type"
     t.index ["period_date"], name: "index_ip_reputation_metrics_on_period_date"
     t.index ["reputation_score"], name: "index_ip_reputation_metrics_on_reputation_score"
   end

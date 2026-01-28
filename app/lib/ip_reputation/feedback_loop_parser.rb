@@ -130,10 +130,17 @@ module IPReputation
       # Extract destination domain from recipient
       destination_domain = complaint_data[:original_rcpt_to]&.split("@")&.last
 
+      # Use hourly period for FBL complaints to allow multiple per day
+      # Set period_date to beginning of current hour to avoid conflicts
+      current_time = Time.current
+      period_date = current_time.to_date
+
       IPReputationMetric.create!(
         ip_address: ip_address,
         destination_domain: destination_domain,
-        metric_type: "feedback_loop_complaint",
+        period: IPReputationMetric::HOURLY,
+        period_date: period_date,
+        metric_type: IPReputationMetric::METRIC_TYPE_FEEDBACK_LOOP,
         complaint_rate: nil, # Will be calculated from aggregate data
         metadata: complaint_data.to_json
       )
@@ -147,7 +154,7 @@ module IPReputation
 
       # Calculate complaint rate over the last 7 days
       complaints_count = IPReputationMetric
-                         .where(ip_address: ip_address, destination_domain: destination_domain, metric_type: "feedback_loop_complaint")
+                         .where(ip_address: ip_address, destination_domain: destination_domain, metric_type: IPReputationMetric::METRIC_TYPE_FEEDBACK_LOOP)
                          .where("created_at > ?", 7.days.ago)
                          .count
 

@@ -64,7 +64,7 @@ module IPReputation
     private
 
     def default_credentials
-      config = Postal.config.ip_reputation&.google_postmaster
+      config = ::Config.ip_reputation&.google_postmaster
       return nil unless config
 
       {
@@ -123,7 +123,10 @@ module IPReputation
     end
 
     def parse_response(response)
-      return nil unless response.code.to_i == 200
+      unless response.code.to_i == 200
+        Rails.logger.error "[GooglePostmaster] Error fetching data: HTTP #{response.code} - #{response.body}"
+        return nil
+      end
 
       data = JSON.parse(response.body)
 

@@ -40,7 +40,21 @@ RSpec.configure do |config|
     unless defined?(Config)
       config_double = double("config")
       allow(config_double).to receive(:notifications).and_return({})
-      stub_const("Config", double(ip_reputation: config_double))
+
+      # Microsoft SNDS config
+      microsoft_snds_config = double("microsoft_snds")
+      allow(microsoft_snds_config).to receive(:[]).with(:api_key).and_return(nil)
+      allow(config_double).to receive(:microsoft_snds).and_return(microsoft_snds_config)
+
+      # Google Postmaster config
+      allow(config_double).to receive(:google_postmaster).and_return({})
+
+      dns_double = double("dns", return_path_domain: "example.com")
+
+      stub_const("Config", double(
+                             ip_reputation: config_double,
+                             dns: dns_double
+                           ))
     end
   end
 

@@ -122,9 +122,10 @@ module IPReputation
       IPReputationMetric.create!(
         ip_address: ip_address,
         destination_domain: data[:domain],
-        metric_type: "google_postmaster_reputation",
+        period_date: Date.current,
+        metric_type: IPReputationMetric::METRIC_TYPE_GOOGLE_POSTMASTER,
         metric_value: reputation_to_numeric(data[:domain_reputation]),
-        spam_rate: data[:spam_rate],
+        spam_rate: (data[:spam_rate].to_f * 10_000).to_i,
         complaint_rate: data[:user_reported_spam_rate],
         auth_success_rate: [
           data[:dkim_success_rate],
@@ -139,9 +140,10 @@ module IPReputation
       IPReputationMetric.create!(
         ip_address: ip_address,
         destination_domain: "outlook.com",
-        metric_type: "microsoft_snds",
+        period_date: Date.current,
+        metric_type: IPReputationMetric::METRIC_TYPE_MICROSOFT_SNDS,
         metric_value: data[:severity],
-        spam_rate: nil,
+        spam_rate: 0,
         complaint_rate: data[:complaint_rate],
         trap_hits: data[:trap_message_end_users],
         metadata: data.to_json
@@ -194,8 +196,7 @@ module IPReputation
       Rails.logger.warn "[IPReputation] Pausing #{ip_address.ipv4} for domain #{domain}: #{reason}"
 
       # Use IPHealthManager to handle the pause action consistently
-      manager = IPBlacklist::IPHealthManager.new(ip_address)
-      manager.pause_for_domain(domain, reason: reason)
+      IPBlacklist::IPHealthManager.pause_for_domain(ip_address, domain, reason: reason)
     end
 
     def log_warning(ip_address, domain, message)
