@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class AddSMTPDetectionFieldsToIPBlacklistRecords < ActiveRecord::Migration[6.1]
+class AddSMTPDetectionFieldsToIPBlacklistRecords < ActiveRecord::Migration[7.1]
 
   def change
     add_column :ip_blacklist_records, :detection_method, :string, default: "dnsbl_check"

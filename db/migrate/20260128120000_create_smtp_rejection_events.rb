@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateSMTPRejectionEvents < ActiveRecord::Migration[6.1]
+class CreateSMTPRejectionEvents < ActiveRecord::Migration[7.1]
 
   def change
     create_table :smtp_rejection_events, id: :integer do |t|

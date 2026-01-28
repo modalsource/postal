@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateIPHealthActions < ActiveRecord::Migration[6.1]
+class CreateIPHealthActions < ActiveRecord::Migration[7.1]
 
   def change
     create_table :ip_health_actions, id: :integer do |t|

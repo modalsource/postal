@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateIPDomainExclusions < ActiveRecord::Migration[6.1]
+class CreateIPDomainExclusions < ActiveRecord::Migration[7.1]
 
   def change
     create_table :ip_domain_exclusions, id: :integer do |t|

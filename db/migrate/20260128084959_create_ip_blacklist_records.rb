@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateIPBlacklistRecords < ActiveRecord::Migration[6.1]
+class CreateIPBlacklistRecords < ActiveRecord::Migration[7.1]
 
   def change
     create_table :ip_blacklist_records, id: :integer do |t|
