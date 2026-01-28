@@ -64,7 +64,7 @@ module IPReputation
     private
 
     def default_credentials
-      config = ::Config.ip_reputation&.google_postmaster
+      config = Postal::Config.ip_reputation&.google_postmaster
       return nil unless config
 
       {

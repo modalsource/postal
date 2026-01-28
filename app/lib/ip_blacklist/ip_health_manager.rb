@@ -155,6 +155,132 @@ module IPBlacklist
         notifier.notify_ip_paused(ip_address, destination_domain, reason || "Manual pause by admin", action)
       end
 
+      # Handle SMTP rejection with blacklist detection (hard bounce)
+      #
+      # @param ip_address [IPAddress] The IP address
+      # @param destination_domain [String] The destination domain
+      # @param parsed_response [Hash] Parsed SMTP response from SmtpResponseParser
+      # @param smtp_code [String] The SMTP response code
+      # @param smtp_message [String] The full SMTP error message
+      #
+      def handle_smtp_rejection(ip_address, destination_domain, parsed_response, smtp_code, smtp_message)
+        return unless parsed_response[:blacklist_detected]
+
+        # Create SMTP rejection event record
+        rejection_event = SMTPRejectionEvent.create!(
+          ip_address: ip_address,
+          destination_domain: destination_domain,
+          smtp_code: smtp_code,
+          bounce_type: parsed_response[:bounce_type],
+          smtp_message: smtp_message,
+          parsed_details: parsed_response.to_json,
+          occurred_at: Time.current
+        )
+
+        Rails.logger.warn "[SMTP REJECTION] IP #{ip_address.ipv4} rejected by #{destination_domain} - #{parsed_response[:description]}"
+
+        # Create or update blacklist record
+        blacklist_record = IPBlacklistRecord.find_or_initialize_by(
+          ip_address: ip_address,
+          destination_domain: destination_domain,
+          blacklist_source: parsed_response[:blacklist_source] || "smtp_rejection"
+        )
+
+        if blacklist_record.new_record?
+          blacklist_record.assign_attributes(
+            detected_at: Time.current,
+            detection_method: IPBlacklistRecord::SMTP_RESPONSE,
+            smtp_response_code: smtp_code,
+            smtp_response_message: smtp_message,
+            smtp_rejection_event: rejection_event,
+            status: IPBlacklistRecord::ACTIVE,
+            details: {
+              severity: parsed_response[:severity],
+              description: parsed_response[:description],
+              suggested_action: parsed_response[:suggested_action]
+            }.to_json
+          )
+          blacklist_record.save!
+
+          Rails.logger.warn "[SMTP REJECTION] Created blacklist record for IP #{ip_address.ipv4} - source: #{parsed_response[:blacklist_source]}"
+
+          # Handle the blacklist using existing logic
+          handle_blacklist_detected(blacklist_record)
+        else
+          # Update existing record with new SMTP rejection info
+          blacklist_record.update!(
+            last_checked_at: Time.current,
+            check_count: blacklist_record.check_count + 1,
+            smtp_response_code: smtp_code,
+            smtp_response_message: smtp_message,
+            smtp_rejection_event: rejection_event
+          )
+
+          Rails.logger.warn "[SMTP REJECTION] Updated existing blacklist record for IP #{ip_address.ipv4}"
+        end
+      end
+
+      # Handle excessive soft bounces (threshold-based)
+      #
+      # @param ip_address [IPAddress] The IP address
+      # @param destination_domain [String] The destination domain
+      # @param reason [String] Optional reason
+      #
+      def handle_excessive_soft_bounces(ip_address, destination_domain, reason: nil)
+        # Check recent soft bounce count from database
+        recent_count = SMTPRejectionEvent.count_recent_soft_bounces(
+          ip_address.id,
+          destination_domain,
+          60 # window_minutes
+        )
+
+        reason_text = reason || "Excessive soft bounces detected (#{recent_count} in last hour)"
+
+        Rails.logger.warn "[SMTP SOFT BOUNCE] IP #{ip_address.ipv4} exceeded soft bounce threshold for #{destination_domain}"
+
+        # Create or update exclusion for monitoring
+        exclusion = IPDomainExclusion.find_or_initialize_by(
+          ip_address: ip_address,
+          destination_domain: destination_domain
+        )
+
+        if exclusion.new_record?
+          exclusion.assign_attributes(
+            excluded_at: Time.current,
+            reason: reason_text,
+            warmup_stage: 0
+          )
+          exclusion.save!
+        else
+          # Reset to stage 0 if it was warming up
+          exclusion.update!(
+            warmup_stage: 0,
+            reason: reason_text,
+            next_warmup_at: nil
+          )
+        end
+
+        # Log the pause action
+        action = IPHealthAction.create!(
+          ip_address: ip_address,
+          action_type: IPHealthAction::PAUSE,
+          destination_domain: destination_domain,
+          reason: reason_text,
+          previous_priority: ip_address.priority,
+          new_priority: 0,
+          user_id: nil # automated
+        )
+
+        Rails.logger.warn "[IP HEALTH] Paused IP #{ip_address.ipv4} for domain #{destination_domain} due to excessive soft bounces"
+
+        # Send notification
+        notifier = IPBlacklist::Notifier.new
+        notifier.notify_ip_paused(ip_address, destination_domain, reason_text, action)
+
+        # Reset the soft bounce counter after taking action
+        SoftBounceTracker.reset(ip_address_id: ip_address.id, destination_domain: destination_domain)
+      end
+
       private
 
       # Check if we have other healthy IPs available and log rotation info

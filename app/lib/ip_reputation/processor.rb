@@ -48,7 +48,7 @@ module IPReputation
 
     def initialize(google_credentials: nil, snds_api_key: nil)
       @google_client = GooglePostmasterClient.new(
-        domain: ::Config.dns&.return_path_domain || "example.com",
+        domain: Postal::Config.dns&.return_path_domain || "example.com",
         credentials: google_credentials
       )
       @snds_client = MicrosoftSndsClient.new(api_key: snds_api_key)

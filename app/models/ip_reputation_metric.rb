@@ -85,29 +85,31 @@ class IPReputationMetric < ApplicationRecord
   # Instance methods
 
   def calculate_rates
-    return if sent_count.zero?
-
-    self.bounce_rate = ((bounced_count.to_f / sent_count) * 10_000).to_i
-    self.delivery_rate = ((delivered_count.to_f / sent_count) * 10_000).to_i
-    self.spam_rate = ((spam_complaint_count.to_f / sent_count) * 10_000).to_i
+    IPMetrics::Calculator.calculate_rates(self)
   end
 
   def calculate_reputation_score
-    # Simple reputation scoring algorithm
-    # 100 = perfect, 0 = terrible
-    # This is a placeholder - will be refined in Phase 7
-    score = 100
+    self.reputation_score = IPMetrics::Calculator.calculate_reputation_score(self)
+  end
 
-    # Penalize for high bounce rate
-    score -= (bounce_rate / 100) if bounce_rate > 500 # > 5%
+  def reputation_status
+    IPMetrics::Calculator.reputation_status(reputation_score)
+  end
 
-    # Penalize for spam complaints
-    score -= (spam_rate / 50) if spam_rate > 100 # > 1%
+  def bounce_rate_status
+    IPMetrics::Calculator.bounce_rate_status(bounce_rate)
+  end
 
-    # Penalize for low delivery rate
-    score -= (100 - (delivery_rate / 100)) if delivery_rate < 9000 # < 90%
+  def spam_rate_status
+    IPMetrics::Calculator.spam_rate_status(spam_rate)
+  end
 
-    self.reputation_score = [score, 0].max
+  def delivery_rate_status
+    IPMetrics::Calculator.delivery_rate_status(delivery_rate)
+  end
+
+  def analyze
+    IPMetrics::Calculator.analyze_metric(self)
   end
 
   def bounce_rate_percentage

@@ -30,7 +30,7 @@ module IPBlacklist
     attr_reader :config
 
     def initialize
-      @config = ::Config.ip_reputation&.notifications || {}
+      @config = Postal::Config.ip_reputation&.notifications || {}
     end
 
     # Notify when an IP is detected on a blacklist

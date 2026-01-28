@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_01_28_100916) do
+ActiveRecord::Schema[7.1].define(version: 2026_01_28_120001) do
   create_table "additional_route_endpoints", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.integer "route_id"
     t.string "endpoint_type"
@@ -165,9 +165,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_01_28_100916) do
     t.integer "check_count", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "detection_method", default: "dnsbl_check"
+    t.string "smtp_response_code"
+    t.text "smtp_response_message"
+    t.integer "smtp_rejection_event_id"
     t.index ["destination_domain"], name: "index_ip_blacklist_records_on_destination_domain"
+    t.index ["detection_method"], name: "index_ip_blacklist_records_on_detection_method"
     t.index ["ip_address_id", "destination_domain", "blacklist_source"], name: "index_blacklist_on_ip_domain_source", unique: true
     t.index ["ip_address_id"], name: "index_ip_blacklist_records_on_ip_address_id"
+    t.index ["smtp_rejection_event_id"], name: "index_ip_blacklist_records_on_smtp_rejection_event_id"
     t.index ["status", "last_checked_at"], name: "index_ip_blacklist_records_on_status_and_last_checked_at"
   end
 
@@ -461,6 +467,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_01_28_100916) do
     t.datetime "updated_at"
   end
 
+  create_table "smtp_rejection_events", id: :integer, charset: "utf8mb4", collation: "utf8mb4_uca1400_ai_ci", force: :cascade do |t|
+    t.integer "ip_address_id", null: false
+    t.string "destination_domain", null: false
+    t.string "smtp_code", null: false
+    t.string "bounce_type", null: false
+    t.text "smtp_message"
+    t.text "parsed_details"
+    t.datetime "occurred_at", precision: nil, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bounce_type", "occurred_at"], name: "index_smtp_rejection_events_on_bounce_type_and_occurred_at"
+    t.index ["destination_domain"], name: "index_smtp_rejection_events_on_destination_domain"
+    t.index ["ip_address_id", "destination_domain", "occurred_at"], name: "index_smtp_events_on_ip_domain_time"
+    t.index ["ip_address_id"], name: "index_smtp_rejection_events_on_ip_address_id"
+  end
+
   create_table "statistics", id: :integer, charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
     t.bigint "total_messages", default: 0
     t.bigint "total_outgoing", default: 0
@@ -572,6 +594,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_01_28_100916) do
   end
 
   add_foreign_key "ip_blacklist_records", "ip_addresses"
+  add_foreign_key "ip_blacklist_records", "smtp_rejection_events"
   add_foreign_key "ip_domain_exclusions", "ip_addresses"
   add_foreign_key "ip_domain_exclusions", "ip_blacklist_records"
   add_foreign_key "ip_health_actions", "ip_addresses"
@@ -582,4 +605,5 @@ ActiveRecord::Schema[7.1].define(version: 2026_01_28_100916) do
   add_foreign_key "mx_rate_limit_whitelists", "servers"
   add_foreign_key "mx_rate_limit_whitelists", "users", column: "created_by_id"
   add_foreign_key "mx_rate_limits", "servers"
+  add_foreign_key "smtp_rejection_events", "ip_addresses"
 end
