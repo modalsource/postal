@@ -49,7 +49,7 @@ module IPBlacklist
     # Re-check a specific blacklist record to see if it's been delisted
     def recheck_specific_blacklist(blacklist_record)
       dnsbl = DNSBLS.find { |d| d[:name] == blacklist_record.blacklist_source }
-      return unless dnsbl
+      return { listed: false, error: "DNSBL not found" } unless dnsbl
 
       result = query_dnsbl(@ip_address.ipv4, dnsbl[:host])
 
@@ -74,6 +74,9 @@ module IPBlacklist
       else
         logger.info "[BLACKLIST CHECK] IP #{@ip_address.ipv4} no longer listed on #{dnsbl[:name]}"
       end
+
+      # Return result for caller
+      result
     end
 
     private

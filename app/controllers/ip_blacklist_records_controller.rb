@@ -124,15 +124,18 @@ class IPBlacklistRecordsController < ApplicationController
   # Manually trigger a recheck of this blacklist
   def recheck
     checker = IPBlacklist::Checker.new(@record.ip_address)
-    result = checker.check_single_dnsbl(@record.blacklist_source, @record.destination_domain)
 
-    if result[:listed]
-      message = "Still blacklisted on #{@record.blacklist_source}"
-      @record.update!(last_checked_at: Time.current)
-    else
-      # Mark as resolved without invalid parameters
+    # Perform the recheck (this updates the record internally and returns result)
+    result = checker.recheck_specific_blacklist(@record)
+
+    # Handle delisting - mark as resolved if no longer listed
+    if !result[:listed] && @record.status == IPBlacklistRecord::ACTIVE
       @record.mark_resolved!
       message = "Confirmed delisted from #{@record.blacklist_source}"
+    elsif result[:listed]
+      message = "Still blacklisted on #{@record.blacklist_source}"
+    else
+      message = "Recheck completed for #{@record.blacklist_source}"
     end
 
     respond_to do |format|
