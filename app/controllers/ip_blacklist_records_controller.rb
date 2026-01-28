@@ -6,9 +6,11 @@ class IPBlacklistRecordsController < ApplicationController
 
   include IPAuthorization
   include InputSanitization
+  include RateLimiting
 
   before_action :admin_required
   before_action :load_record, only: [:show, :resolve, :ignore, :recheck]
+  before_action :rate_limit_recheck, only: [:recheck]
 
   # GET /ip_blacklist_records
   # List all blacklist records with filtering

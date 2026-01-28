@@ -144,11 +144,20 @@ module IPBlacklist
     private
 
     # Generates the cache key for this IP+domain combination
+    # Security: Hash domain name to prevent cache key collision attacks
     #
     # @return [String]
     #
     def cache_key
-      "ip_blacklist:soft_bounce:#{ip_address_id}:#{destination_domain}"
+      # Normalize domain to lowercase and hash it to prevent:
+      # 1. Cache key collision attacks (e.g., "gmail.com" vs "gmail..com")
+      # 2. Cache poisoning via specially crafted domain names
+      # 3. Key length issues with very long domains
+      domain_normalized = destination_domain.to_s.downcase.strip
+      domain_hash = Digest::SHA256.hexdigest(domain_normalized)
+
+      # Version the cache key to allow invalidation if format changes
+      "ip_blacklist:soft_bounce:v1:#{ip_address_id}:#{domain_hash}"
     end
 
     # Increments the counter with expiry

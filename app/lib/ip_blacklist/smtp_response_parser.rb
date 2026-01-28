@@ -19,6 +19,10 @@ module IPBlacklist
   #
   class SmtpResponseParser
 
+    # Security: Protect against ReDoS attacks
+    MESSAGE_MAX_LENGTH = 5000
+    PARSE_TIMEOUT = 0.5 # seconds
+
     # SMTP code categories
     SOFT_BOUNCE_CODES = %w[421 450 451 452].freeze
     HARD_BOUNCE_CODES = %w[550 551 552 553 554].freeze
@@ -42,84 +46,84 @@ module IPBlacklist
       /\bRBL\b/i => "generic_rbl"
     }.freeze
 
-    # Gmail-specific patterns
+    # Gmail-specific patterns (optimized for ReDoS protection)
     GMAIL_PATTERNS = [
       {
-        regex: /421[- ]4\.7\.0.*rate limit.*exceeded/i,
+        regex: /\A.{0,200}421[- ]4\.7\.0.{0,50}rate limit.{0,50}exceeded/i,
         source: "gmail_rate_limit",
         severity: "medium",
         description: "Gmail rate limiting due to suspicious activity or low reputation"
       },
       {
-        regex: /421[- ]4\.7\.0.*Try again later/i,
+        regex: /\A.{0,200}421[- ]4\.7\.0.{0,50}Try again later/i,
         source: "gmail_temporary_block",
         severity: "high",
         description: "Gmail temporary block - likely reputation issue"
       },
       {
-        regex: /550[- ]5\.7\.1.*Our system has detected.*suspicious/i,
+        regex: /\A.{0,200}550[- ]5\.7\.1.{0,50}Our system has detected.{0,50}suspicious/i,
         source: "gmail_suspicious_activity",
         severity: "high",
         description: "Gmail detected suspicious activity"
       },
       {
-        regex: /550[- ]5\.7\.1.*email.*blocked.*policy/i,
+        regex: /\A.{0,200}550[- ]5\.7\.1.{0,50}email.{0,50}blocked.{0,50}policy/i,
         source: "gmail_policy_block",
         severity: "high",
         description: "Gmail policy-based blocking"
       },
       {
-        regex: /550[- ]5\.7\.26.*message.*not pass authentication/i,
+        regex: /\A.{0,200}550[- ]5\.7\.26.{0,50}message.{0,50}not pass authentication/i,
         source: "gmail_authentication_failure",
         severity: "medium",
         description: "Gmail SPF/DKIM/DMARC authentication failure"
       },
     ].freeze
 
-    # Outlook/Hotmail-specific patterns
+    # Outlook/Hotmail-specific patterns (optimized for ReDoS protection)
     OUTLOOK_PATTERNS = [
       {
-        regex: /550[- ]5\.7\.1.*Service unavailable.*Client host.*rejected/i,
+        regex: /\A.{0,200}550[- ]5\.7\.1.{0,50}Service unavailable.{0,50}Client host.{0,50}rejected/i,
         source: "outlook_ip_blocked",
         severity: "high",
         description: "Outlook/Hotmail IP blocking"
       },
       {
-        regex: /550[- ]5\.7\.1.*blocked.*IP reputation/i,
+        regex: /\A.{0,200}550[- ]5\.7\.1.{0,50}blocked.{0,50}IP reputation/i,
         source: "outlook_reputation_block",
         severity: "high",
         description: "Outlook IP reputation blocking"
       },
       {
-        regex: /550[- ].*\(BAY\d+\).*block list.*DNSBL/i,
+        regex: /\A.{0,200}550[- ].{0,50}\(BAY\d+\).{0,50}block list.{0,50}DNSBL/i,
         source: "outlook_dnsbl_block",
         severity: "high",
         description: "Outlook DNSBL-based blocking"
       },
       {
-        regex: /421[- ]4\.3\.2.*temporarily deferred/i,
+        regex: /\A.{0,200}421[- ]4\.3\.2.{0,50}temporarily deferred/i,
         source: "outlook_temporary_defer",
         severity: "medium",
         description: "Outlook temporary deferral - possible reputation issue"
       },
     ].freeze
 
-    # Yahoo-specific patterns
+    # Yahoo-specific patterns (optimized for ReDoS protection)
     YAHOO_PATTERNS = [
       {
-        regex: /421[- ]4\.7\.0.*\[TS\d+\]/i,
+        regex: /\A.{0,200}421[- ]4\.7\.0.{0,50}\[TS\d+\]/i,
         source: "yahoo_throttle",
         severity: "medium",
         description: "Yahoo throttling due to volume or reputation"
       },
       {
-        regex: /554[- ]5\.7\.9.*Message not accepted for policy reasons/i,
+        regex: /\A.{0,200}554[- ]5\.7\.9.{0,50}Message not accepted for policy reasons/i,
         source: "yahoo_policy_block",
         severity: "high",
         description: "Yahoo policy-based blocking"
       },
       {
-        regex: /553[- ].*spam.*blocked/i,
+        regex: /\A.{0,200}553[- ].{0,50}spam.{0,50}blocked/i,
         source: "yahoo_spam_block",
         severity: "high",
         description: "Yahoo spam filtering block"
@@ -142,6 +146,9 @@ module IPBlacklist
     def self.parse(message, smtp_code)
       return default_result(smtp_code) if message.blank?
 
+      # Security: Truncate message to prevent ReDoS attacks
+      safe_message = message[0, MESSAGE_MAX_LENGTH]
+
       result = {
         blacklist_detected: false,
         bounce_type: determine_bounce_type(smtp_code),
@@ -150,15 +157,24 @@ module IPBlacklist
         description: "Generic SMTP rejection",
         suggested_action: "monitor",
         smtp_code_category: categorize_smtp_code(smtp_code),
-        raw_message: message
+        raw_message: safe_message
       }
 
-      # Check for provider-specific patterns first (most specific)
-      # then generic DNSBL patterns (fallback)
-      check_gmail_patterns(message, result) ||
-        check_outlook_patterns(message, result) ||
-        check_yahoo_patterns(message, result) ||
-        check_generic_dnsbl_patterns(message, result)
+      # Security: Wrap pattern matching in timeout to prevent ReDoS
+      begin
+        Timeout.timeout(PARSE_TIMEOUT) do
+          # Check for provider-specific patterns first (most specific)
+          # then generic DNSBL patterns (fallback)
+          check_gmail_patterns(safe_message, result) ||
+            check_outlook_patterns(safe_message, result) ||
+            check_yahoo_patterns(safe_message, result) ||
+            check_generic_dnsbl_patterns(safe_message, result)
+        end
+      rescue Timeout::Error
+        Rails.logger.warn("[IPBlacklist::SmtpResponseParser] Pattern matching timeout - possible ReDoS attempt. Message length: #{message.length}")
+        # Return safe default result on timeout
+        result[:description] = "Pattern matching timeout - message too complex"
+      end
 
       # Determine suggested action based on severity and bounce type
       result[:suggested_action] = determine_suggested_action(result)
