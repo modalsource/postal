@@ -97,18 +97,20 @@ class AggregateIPMetricsScheduledTask < ApplicationScheduledTask
       )
 
       # Log health action
-      IPHealthAction.create!(
+      health_action = IPHealthAction.create!(
         ip_address: metric.ip_address,
         action_type: IPHealthAction::PAUSE,
-        reason: "Critical reputation: #{analysis[:issues].join('; ')}",
+        reason: "Critical reputation: #{analysis[:issues].join('; ')}"
       )
 
       # Send notification
       begin
-        IPBlacklist::Notifier.notify(
-          event: :ip_paused_metrics,
-          ip_address: metric.ip_address,
-          }
+        notifier = IPBlacklist::Notifier.new
+        notifier.notify_ip_paused(
+          metric.ip_address,
+          metric.destination_domain,
+          "Critical reputation metrics: #{analysis[:issues].first}",
+          health_action
         )
       rescue StandardError => e
         logger.error "[IP METRICS] Failed to send notification: #{e.message}"
@@ -123,7 +125,7 @@ class AggregateIPMetricsScheduledTask < ApplicationScheduledTask
     IPHealthAction.create!(
       ip_address: metric.ip_address,
       action_type: IPHealthAction::MONITOR,
-      reason: "Poor reputation metrics: #{analysis[:issues].join('; ')}",
+      reason: "Poor reputation metrics: #{analysis[:issues].join('; ')}"
     )
   end
 
