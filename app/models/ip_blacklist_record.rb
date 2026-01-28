@@ -58,6 +58,7 @@ class IPBlacklistRecord < ApplicationRecord
   STATUSES = [ACTIVE, RESOLVED, IGNORED].freeze
 
   # Validations
+  validates :destination_domain, presence: true
   validates :blacklist_source, presence: true
   validates :status, inclusion: { in: STATUSES }
   validates :detection_method, inclusion: { in: DETECTION_METHODS }

@@ -15,9 +15,7 @@ RSpec.describe IPReputation::MicrosoftSndsClient do
       let(:client) { described_class.new }
 
       before do
-        config_double = double("config")
-        allow(config_double).to receive(:[]).with(:api_key).and_return("config_api_key")
-        allow(Config).to receive_message_chain(:ip_reputation, :microsoft_snds).and_return(config_double)
+        allow_any_instance_of(described_class).to receive(:default_api_key).and_return("config_api_key")
       end
 
       it "uses default api_key from config" do

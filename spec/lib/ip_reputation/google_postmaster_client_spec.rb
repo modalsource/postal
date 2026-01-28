@@ -25,16 +25,17 @@ RSpec.describe IPReputation::GooglePostmasterClient do
 
     context "when credentials are not provided" do
       let(:client) { described_class.new(domain: domain) }
-
-      before do
-        google_postmaster_config = {
+      let(:default_creds) do
+        {
           access_token: "config_token",
           refresh_token: "config_refresh",
           client_id: "config_id",
           client_secret: "config_secret"
         }
-        ip_reputation_config = double("ip_reputation", google_postmaster: google_postmaster_config)
-        allow(Config).to receive(:ip_reputation).and_return(ip_reputation_config)
+      end
+
+      before do
+        allow_any_instance_of(described_class).to receive(:default_credentials).and_return(default_creds)
       end
 
       it "uses default credentials from config" do

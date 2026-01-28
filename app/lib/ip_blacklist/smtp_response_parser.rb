@@ -49,7 +49,7 @@ module IPBlacklist
     # Gmail-specific patterns (optimized for ReDoS protection)
     GMAIL_PATTERNS = [
       {
-        regex: /\A.{0,200}421[- ]4\.7\.0.{0,50}rate limit.{0,50}exceeded/i,
+        regex: /\A.{0,200}421[- ]4\.7\.0.{0,150}rate limit.{0,50}exceeded/i,
         source: "gmail_rate_limit",
         severity: "medium",
         description: "Gmail rate limiting due to suspicious activity or low reputation"
@@ -95,7 +95,7 @@ module IPBlacklist
         description: "Outlook IP reputation blocking"
       },
       {
-        regex: /\A.{0,200}550[- ].{0,50}\(BAY\d+\).{0,50}block list.{0,50}DNSBL/i,
+        regex: /\A.{0,200}550[- ].{0,50}\(BAY\d+\).{0,200}block list.{0,100}DNSBL/i,
         source: "outlook_dnsbl_block",
         severity: "high",
         description: "Outlook DNSBL-based blocking"

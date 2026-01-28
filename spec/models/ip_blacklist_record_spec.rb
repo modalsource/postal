@@ -45,6 +45,8 @@ RSpec.describe IPBlacklistRecord, type: :model do
   end
 
   describe "validations" do
+    subject(:record) { build(:ip_blacklist_record) }
+
     it { should validate_presence_of(:destination_domain) }
     it { should validate_presence_of(:blacklist_source) }
     it { should validate_presence_of(:detected_at) }
