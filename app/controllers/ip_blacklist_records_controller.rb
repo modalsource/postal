@@ -4,6 +4,9 @@
 # Allows admins to view, resolve, ignore, and recheck blacklist records
 class IPBlacklistRecordsController < ApplicationController
 
+  include IPAuthorization
+  include InputSanitization
+
   before_action :admin_required
   before_action :load_record, only: [:show, :resolve, :ignore, :recheck]
 
@@ -83,7 +86,8 @@ class IPBlacklistRecordsController < ApplicationController
   # POST /ip_blacklist_records/:id/ignore
   # Mark a blacklist as ignored (false positive)
   def ignore
-    reason = params[:reason] || "Ignored by #{current_user.name}"
+    # Sanitize reason input
+    reason = sanitize_reason(params[:reason], default: "Ignored by #{current_user.name}")
 
     @record.update!(
       status: "ignored",
@@ -106,6 +110,12 @@ class IPBlacklistRecordsController < ApplicationController
       format.html { redirect_back fallback_location: ip_blacklist_records_path, notice: message }
       format.json { render json: { success: true, message: message } }
     end
+  rescue ArgumentError => e
+    # Handle invalid reason input
+    respond_to do |format|
+      format.html { redirect_back fallback_location: ip_blacklist_records_path, alert: e.message }
+      format.json { render json: { error: e.message }, status: :unprocessable_content }
+    end
   end
 
   # POST /ip_blacklist_records/:id/recheck
@@ -118,7 +128,8 @@ class IPBlacklistRecordsController < ApplicationController
       message = "Still blacklisted on #{@record.blacklist_source}"
       @record.update!(last_checked_at: Time.current)
     else
-      @record.mark_resolved!(resolved_by: current_user, resolution_notes: "Confirmed delisted via manual recheck")
+      # Mark as resolved without invalid parameters
+      @record.mark_resolved!
       message = "Confirmed delisted from #{@record.blacklist_source}"
     end
 
@@ -127,10 +138,19 @@ class IPBlacklistRecordsController < ApplicationController
       format.json { render json: { success: true, message: message, listed: result[:listed] } }
     end
   rescue StandardError => e
-    error_message = "Recheck failed: #{e.message}"
+    # Log detailed error for debugging
+    error_id = SecureRandom.uuid
+    Rails.logger.error "[BLACKLIST RECHECK] Error ID: #{error_id}"
+    Rails.logger.error "[BLACKLIST RECHECK] Record ID: #{@record.id}, User: #{current_user.id}"
+    Rails.logger.error "[BLACKLIST RECHECK] #{e.class}: #{e.message}"
+    Rails.logger.error e.backtrace.join("\n")
+
+    # Return generic error message to user
+    error_message = "Recheck failed. Please try again later. (Error ID: #{error_id})"
+
     respond_to do |format|
       format.html { redirect_back fallback_location: ip_blacklist_record_path(@record), alert: error_message }
-      format.json { render json: { error: error_message }, status: :unprocessable_content }
+      format.json { render json: { error: error_message, error_id: error_id }, status: :unprocessable_content }
     end
   end
 

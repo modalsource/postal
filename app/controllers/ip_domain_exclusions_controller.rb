@@ -4,6 +4,9 @@
 # Manages paused/warming IPs for specific domains
 class IPDomainExclusionsController < ApplicationController
 
+  include IPAuthorization
+  include InputSanitization
+
   before_action :admin_required
   before_action :load_exclusion, only: [:show, :remove, :adjust_stage]
 
@@ -68,7 +71,8 @@ class IPDomainExclusionsController < ApplicationController
   # POST /ip_domain_exclusions/:id/remove
   # Remove an exclusion (fully unpause)
   def remove
-    reason = params[:reason] || "Manual removal by #{current_user.name}"
+    # Sanitize reason input
+    reason = sanitize_reason(params[:reason], default: "Manual removal by #{current_user.name}")
 
     @exclusion.destroy
 
@@ -87,20 +91,26 @@ class IPDomainExclusionsController < ApplicationController
       format.html { redirect_to ip_domain_exclusions_path, notice: message }
       format.json { render json: { success: true, message: message } }
     end
+  rescue ArgumentError => e
+    # Handle invalid reason input
+    respond_to do |format|
+      format.html { redirect_back fallback_location: ip_domain_exclusion_path(@exclusion), alert: e.message }
+      format.json { render json: { error: e.message }, status: :unprocessable_content }
+    end
   end
 
   # POST /ip_domain_exclusions/:id/adjust_stage
   # Adjust warmup stage up or down
   def adjust_stage
-    direction = params[:direction] # 'up' or 'down'
-    new_stage = params[:stage]&.to_i
+    # Sanitize and validate direction parameter
+    direction = sanitize_direction(params[:direction])
+
+    # Sanitize and validate stage parameter
+    new_stage_param = params[:stage]
+    new_stage = new_stage_param ? sanitize_integer(new_stage_param, min: 0, max: 5, default: nil) : nil
 
     if new_stage
       # Set specific stage
-      if new_stage < 0 || new_stage > 5
-        return render json: { error: "Stage must be between 0 and 5" }, status: :unprocessable_content
-      end
-
       old_stage = @exclusion.warmup_stage
       @exclusion.update!(warmup_stage: new_stage)
 
@@ -125,7 +135,7 @@ class IPDomainExclusionsController < ApplicationController
       @exclusion.update!(warmup_stage: new_stage)
       action_reason = "Manual decrease by #{current_user.name}: stage #{old_stage} → #{new_stage}"
     else
-      return render json: { error: "Invalid direction or stage" }, status: :unprocessable_content
+      return render json: { error: "Invalid direction or stage parameter" }, status: :unprocessable_content
     end
 
     # Log action
