@@ -5,24 +5,26 @@
 # Table name: queued_messages
 #
 #  id            :integer          not null, primary key
-#  server_id     :integer
-#  message_id    :integer
+#  attempts      :integer          default(0)
+#  batch_key     :string(255)
 #  domain        :string(255)
-#  locked_by     :string(255)
 #  locked_at     :datetime
+#  locked_by     :string(255)
+#  manual        :boolean          default(FALSE)
+#  mx_domain     :string(255)
 #  retry_after   :datetime
 #  created_at    :datetime
 #  updated_at    :datetime
 #  ip_address_id :integer
-#  attempts      :integer          default(0)
+#  message_id    :integer
 #  route_id      :integer
-#  manual        :boolean          default(FALSE)
-#  batch_key     :string(255)
+#  server_id     :integer
 #
 # Indexes
 #
 #  index_queued_messages_on_domain      (domain)
 #  index_queued_messages_on_message_id  (message_id)
+#  index_queued_messages_on_mx_domain   (mx_domain)
 #  index_queued_messages_on_server_id   (server_id)
 #
 
@@ -56,7 +58,16 @@ class QueuedMessage < ApplicationRecord
     pool = server.ip_pool_for_message(message)
     return if pool.nil?
 
-    self.ip_address = pool.ip_addresses.select_by_priority
+    # Extract destination domain from the queued message
+    destination_domain = domain || extract_domain_from_message
+
+    # Use domain-aware IP selection that respects blacklists and warmup status
+    if destination_domain.present?
+      self.ip_address = pool.ip_addresses.select_by_priority_for_domain(destination_domain)
+    else
+      # Fallback to basic priority selection if domain cannot be determined
+      self.ip_address = pool.ip_addresses.select_by_priority
+    end
   end
 
   def batchable_messages(limit = 10)
@@ -72,6 +83,17 @@ class QueuedMessage < ApplicationRecord
       self.class.ready.where(batch_key: batch_key, ip_address_id: ip_address_id, locked_by: nil, locked_at: nil).limit(limit).update_all(locked_by: locker, locked_at: time)
       QueuedMessage.where(batch_key: batch_key, ip_address_id: ip_address_id, locked_by: locker, locked_at: time).where.not(id: id)
     end
+  end
+
+  private
+
+  def extract_domain_from_message
+    # Try to extract domain from message recipient if domain field is not set
+    return nil unless message
+
+    return unless message.respond_to?(:rcpt_to) && message.rcpt_to.present?
+
+    message.rcpt_to.split("@").last&.downcase
   end
 
 end

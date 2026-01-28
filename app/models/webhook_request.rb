@@ -21,6 +21,7 @@
 # Indexes
 #
 #  index_webhook_requests_on_locked_by  (locked_by)
+#  index_webhook_requests_on_uuid       (uuid)
 #
 
 class WebhookRequest < ApplicationRecord

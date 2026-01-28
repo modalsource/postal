@@ -35,6 +35,15 @@ RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include GeneralHelpers
 
+  # Stub Config constant for IP reputation feature
+  config.before(:each) do
+    unless defined?(Config)
+      config_double = double("config")
+      allow(config_double).to receive(:notifications).and_return({})
+      stub_const("Config", double(ip_reputation: config_double))
+    end
+  end
+
   # Before all request specs, set the hostname to the web hostname for
   # Postal otherwise it'll be www.example.com which will fail host
   # authorization checks.
