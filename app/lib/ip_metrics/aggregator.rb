@@ -135,7 +135,12 @@ module IPMetrics
       def fetch_deliveries(message_db, time_range)
         start_time, end_time = time_range
 
-        # Query deliveries table directly
+        # Validate input types to prevent injection
+        unless start_time.is_a?(Numeric) && end_time.is_a?(Numeric)
+          raise ArgumentError, "Invalid time range: must be numeric timestamps"
+        end
+
+        # Query deliveries table directly with parameterized query
         # We need: message_id (to join to messages for IP and domain info), status, timestamp
         sql = <<-SQL
           SELECT#{' '}
@@ -143,26 +148,36 @@ module IPMetrics
             d.status,
             d.timestamp
           FROM deliveries d
-          WHERE d.timestamp >= #{start_time} AND d.timestamp < #{end_time}
+          WHERE d.timestamp >= ? AND d.timestamp < ?
         SQL
 
-        deliveries = message_db.query(sql)
+        # Use parameterized query to prevent SQL injection
+        sanitized_sql = ActiveRecord::Base.sanitize_sql_array([sql, start_time, end_time])
+        deliveries = message_db.query(sanitized_sql)
 
         # Now we need to enrich these with message data (ip_address_id, rcpt_to domain)
         # Get unique message_ids and fetch message details in batch
         message_ids = deliveries.map { |d| d["message_id"] }.compact.uniq
         return [] if message_ids.empty?
 
+        # Validate all message IDs are integers to prevent injection
+        message_ids = message_ids.map(&:to_i).select { |id| id > 0 }
+        return [] if message_ids.empty?
+
+        # Create parameterized query with placeholders for IN clause
+        placeholders = (["?"] * message_ids.size).join(",")
         messages_sql = <<-SQL
           SELECT#{' '}
             m.id,
             m.rcpt_to,
             m.mail_from
           FROM messages m
-          WHERE m.id IN (#{message_ids.join(',')})
+          WHERE m.id IN (#{placeholders})
         SQL
 
-        messages = message_db.query(messages_sql)
+        # Use parameterized query to prevent SQL injection
+        sanitized_messages_sql = ActiveRecord::Base.sanitize_sql_array([messages_sql, *message_ids])
+        messages = message_db.query(sanitized_messages_sql)
         messages_by_id = messages.index_by { |m| m["id"] }
 
         # Get queued_messages to find IP associations
