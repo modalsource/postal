@@ -41,4 +41,7 @@ Rails.application.configure do
 
   # Raises error for missing translations
   # config.action_view.raise_on_missing_translations = true
+
+  # Allow all hosts in test environment for easier testing
+  config.hosts << /.*/
 end

@@ -66,6 +66,11 @@ module Postal
         default true
       end
 
+      integer :default_dkim_key_size do
+        description "The default size for new DKIM keys"
+        default 1024
+      end
+
       string :signing_key_path do
         description "Path to the private key used for signing"
         default "$config-file-root/signing.key"
@@ -100,6 +105,71 @@ module Postal
       boolean :batch_queued_messages do
         description "When enabled queued messages will be de-queued in batches based on their destination"
         default true
+      end
+
+      integer :batch_queued_messages_limit do
+        description "When de-queuing in batches, use this limit for the batch size"
+        default 100
+      end
+
+      boolean :domain_throttling_enabled do
+        description "Enable domain-based throttling system"
+        default false
+      end
+
+      boolean :mx_rate_limiting_enabled do
+        description "Enable MX-based rate limiting system"
+        default true
+      end
+
+      boolean :mx_rate_limiting_shadow_mode do
+        description "Log rate limiting decisions without actually throttling messages"
+        default false
+      end
+
+      integer :mx_rate_limiting_delay_increment do
+        description "Seconds to add per consecutive error (linear backoff)"
+        default 300
+      end
+
+      integer :mx_rate_limiting_max_delay do
+        description "Maximum delay in seconds (cap for backoff)"
+        default 3600
+      end
+
+      integer :mx_rate_limiting_recovery_threshold do
+        description "Number of consecutive successes needed for one recovery step"
+        default 5
+      end
+
+      integer :mx_rate_limiting_delay_decrement do
+        description "Seconds to reduce per recovery step"
+        default 120
+      end
+
+      integer :mx_rate_limiting_mx_cache_ttl do
+        description "MX DNS cache TTL in seconds"
+        default 3600
+      end
+
+      integer :mx_rate_limiting_cleanup_interval do
+        description "Cleanup task interval in seconds"
+        default 3600
+      end
+
+      integer :mx_rate_limiting_event_retention_days do
+        description "Number of days to retain MX rate limit events"
+        default 30
+      end
+
+      integer :mx_rate_limiting_inactive_cleanup_hours do
+        description "Hours after last success before cleaning up inactive rate limits"
+        default 24
+      end
+
+      integer :mx_rate_limiting_throttled_event_window do
+        description "Seconds to wait before logging another throttled event for the same MX domain (prevents flood of duplicate events)"
+        default 300
       end
     end
 
@@ -363,6 +433,10 @@ module Postal
         description "The path to the resolv.conf file containing addresses for local nameservers"
         default "/etc/resolv.conf"
       end
+
+      string :dmarc_preferred_dns_entry do
+        description "The preferred DMARC DNS record to check against configured domains"
+      end
     end
 
     group :smtp do
@@ -412,6 +486,11 @@ module Postal
       string :from_address do
         description "The e-mail to use as the from address outgoing emails from Postal"
         default "postal@example.com"
+      end
+
+      boolean :disable_ipv6 do
+        description "Disalbles sending emails via IPv6, only IPv4 will be used"
+        default false
       end
     end
 
@@ -490,6 +569,37 @@ module Postal
       end
     end
 
+    group :truemail do
+      boolean :enabled do
+        description "Enable Truemail for email address validation"
+        default false
+      end
+
+      string :host do
+        description "The host of the Truemail API server"
+        default "127.0.0.1"
+      end
+
+      integer :port do
+        description "The port of the Truemail API server"
+        default 9292
+      end
+
+      boolean :ssl do
+        description "Enable SSL for Truemail API connection"
+        default false
+      end
+
+      string :token do
+        description "Authentication token for Truemail API server"
+      end
+
+      integer :timeout do
+        description "Request timeout for Truemail API calls (seconds)"
+        default 10
+      end
+    end
+
     group :smtp_client do
       integer :open_timeout do
         description "The open timeout for outgoing SMTP connections"
@@ -539,6 +649,11 @@ module Postal
         description "The OIDC issuer URL"
       end
 
+      boolean :pkce do
+        description "Option to enable Proof Key for Code Exchange by OAuth Public Clients"
+        default false
+      end
+
       string :identifier do
         description "The client ID for OIDC"
       end
@@ -550,7 +665,7 @@ module Postal
       string :scopes do
         description "Scopes to request from the OIDC server."
         array
-        default ["openid", "email"]
+        default %w[openid email]
       end
 
       string :uid_field do

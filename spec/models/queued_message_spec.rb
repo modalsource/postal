@@ -324,6 +324,82 @@ RSpec.describe QueuedMessage do
     end
   end
 
+  describe "#reallocate_ip_address" do
+    subject(:queued_message) { create(:queued_message) }
+
+    context "when ip pools is disabled" do
+      it "returns nil" do
+        expect(queued_message.reallocate_ip_address).to be nil
+      end
+
+      it "does not change the IP address" do
+        original_ip_id = queued_message.ip_address_id
+        queued_message.reallocate_ip_address
+        expect(queued_message.reload.ip_address_id).to eq original_ip_id
+      end
+    end
+
+    context "when IP pools is enabled" do
+      before do
+        allow(Postal::Config.postal).to receive(:use_ip_pools?).and_return(true)
+      end
+
+      context "when there is no backend message" do
+        it "returns nil" do
+          expect(queued_message.reallocate_ip_address).to be nil
+        end
+      end
+
+      context "when no IP pool can be determined for the message" do
+        let(:server) { create(:server) }
+        let(:message) { MessageFactory.outgoing(server) }
+
+        subject(:queued_message) { create(:queued_message, message: message) }
+
+        it "returns nil" do
+          expect(queued_message.reallocate_ip_address).to be nil
+        end
+      end
+
+      context "when an IP pool has multiple IP addresses" do
+        let(:ip_pool) { create(:ip_pool) }
+        let!(:ip_address1) { create(:ip_address, ip_pool: ip_pool, ipv4: "10.0.0.1", ipv6: "2001:db8::1") }
+        let!(:ip_address2) { create(:ip_address, ip_pool: ip_pool, ipv4: "10.0.0.2", ipv6: "2001:db8::2") }
+        let(:server) { create(:server, ip_pool: ip_pool) }
+        let(:message) { MessageFactory.outgoing(server) }
+
+        subject(:queued_message) do
+          qm = create(:queued_message, message: message)
+          qm.update_column(:ip_address_id, ip_address1.id)
+          qm
+        end
+
+        it "allocates a different IP address" do
+          queued_message.reallocate_ip_address
+          expect(queued_message.reload.ip_address_id).to eq ip_address2.id
+        end
+
+        it "updates the ip_address_id in the database" do
+          expect { queued_message.reallocate_ip_address }.to change { queued_message.reload.ip_address_id }.from(ip_address1.id).to(ip_address2.id)
+        end
+      end
+
+      context "when an IP pool has only one IP address" do
+        let(:ip_pool) { create(:ip_pool, :with_ip_address) }
+        let(:server) { create(:server, ip_pool: ip_pool) }
+        let(:message) { MessageFactory.outgoing(server) }
+
+        subject(:queued_message) { create(:queued_message, message: message) }
+
+        it "keeps the same IP address when there are no alternatives" do
+          original_ip_id = queued_message.ip_address_id
+          queued_message.reallocate_ip_address
+          expect(queued_message.reload.ip_address_id).to eq original_ip_id
+        end
+      end
+    end
+  end
+
   describe "#batchable_messages" do
     context "when the message is not locked" do
       subject(:queued_message) { build(:queued_message) }
@@ -371,6 +447,100 @@ RSpec.describe QueuedMessage do
           create(:queued_message, batch_key: batch_key, ip_address: create(:ip_address))
           expect(queued_message.batchable_messages).to eq []
         end
+      end
+    end
+  end
+
+  describe "#resolve_mx_domain!" do
+    let(:server) { create(:server) }
+    let(:message) do
+      MessageFactory.outgoing(server) do |msg|
+        msg.rcpt_to = "user@example.com"
+      end
+    end
+
+    subject(:queued_message) { create(:queued_message, message: message, mx_domain: nil) }
+
+    context "when mx_domain is already set" do
+      before { queued_message.update_column(:mx_domain, "google.com") }
+
+      it "returns existing mx_domain without resolving" do
+        expect(MXDomainResolver).not_to receive(:resolve)
+        expect(queued_message.resolve_mx_domain!).to eq("google.com")
+      end
+    end
+
+    context "when mx_domain is not set" do
+      it "resolves and caches MX domain" do
+        allow(MXDomainResolver).to receive(:resolve).with("example.com").and_return("mail-provider.com")
+
+        result = queued_message.resolve_mx_domain!
+
+        expect(result).to eq("mail-provider.com")
+        expect(queued_message.reload.mx_domain).to eq("mail-provider.com")
+      end
+    end
+
+    context "when message has no recipient domain" do
+      let(:message) do
+        MessageFactory.outgoing(server) do |msg|
+          msg.rcpt_to = nil
+        end
+      end
+
+      it "returns nil" do
+        expect(queued_message.resolve_mx_domain!).to be_nil
+      end
+    end
+  end
+
+  describe "#mx_rate_limited?" do
+    let(:server) { create(:server) }
+    let(:message) { MessageFactory.outgoing(server) }
+
+    subject(:queued_message) { create(:queued_message, message: message, mx_domain: "google.com") }
+
+    context "when mx_domain is not set" do
+      before { queued_message.update_column(:mx_domain, nil) }
+
+      it "returns false" do
+        expect(queued_message.mx_rate_limited?).to be false
+      end
+    end
+
+    context "when mx_domain is set" do
+      it "checks MXRateLimit.rate_limited?" do
+        expect(MXRateLimit).to receive(:rate_limited?).with(server, "google.com").and_return(true)
+        expect(queued_message.mx_rate_limited?).to be true
+      end
+    end
+  end
+
+  describe "#mx_rate_limit" do
+    let(:server) { create(:server) }
+    let(:message) { MessageFactory.outgoing(server) }
+
+    subject(:queued_message) { create(:queued_message, message: message, mx_domain: "google.com") }
+
+    context "when mx_domain is not set" do
+      before { queued_message.update_column(:mx_domain, nil) }
+
+      it "returns nil" do
+        expect(queued_message.mx_rate_limit).to be_nil
+      end
+    end
+
+    context "when mx_domain is set" do
+      let!(:rate_limit) { create(:mx_rate_limit, server: server, mx_domain: "google.com") }
+
+      it "returns the MXRateLimit record" do
+        expect(queued_message.mx_rate_limit).to eq(rate_limit)
+      end
+    end
+
+    context "when no rate limit exists" do
+      it "returns nil" do
+        expect(queued_message.mx_rate_limit).to be_nil
       end
     end
   end

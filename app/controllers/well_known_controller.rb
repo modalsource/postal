@@ -3,8 +3,8 @@
 class WellKnownController < ApplicationController
 
   layout false
+  protect_from_forgery with: :null_session
 
-  skip_before_action :set_browser_id
   skip_before_action :login_required
   skip_before_action :set_timezone
 

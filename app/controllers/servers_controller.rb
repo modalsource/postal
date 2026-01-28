@@ -54,6 +54,7 @@ class ServersController < ApplicationController
         :message_retention_days,
         :raw_message_retention_days,
         :raw_message_retention_size,
+        :truemail_enabled,
       ]
     end
 
@@ -96,7 +97,7 @@ class ServersController < ApplicationController
   private
 
   def safe_params(*extras)
-    params.require(:server).permit(:name, :mode, :ip_pool_id, *extras)
+    params.require(:server).permit(:name, :mode, :priority, :ip_pool_id, *extras)
   end
 
 end

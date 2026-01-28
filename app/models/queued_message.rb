@@ -70,6 +70,26 @@ class QueuedMessage < ApplicationRecord
     end
   end
 
+  # Reallocate a different IP address for retry attempts (e.g., after a SoftFail).
+  # Tries to select a different IP from the current one if possible.
+  def reallocate_ip_address
+    return unless Postal.ip_pools?
+    return if message.nil?
+
+    pool = server.ip_pool_for_message(message)
+    return if pool.nil?
+
+    available_ips = pool.ip_addresses.where.not(id: ip_address_id)
+    if available_ips.exists?
+      new_ip = available_ips.select_by_priority
+    else
+      # If there's only one IP in the pool, keep the same one
+      new_ip = pool.ip_addresses.select_by_priority
+    end
+
+    update_column(:ip_address_id, new_ip.id) if new_ip
+  end
+
   def batchable_messages(limit = 10)
     unless locked?
       raise Postal::Error, "Must lock current message before locking any friends"
@@ -83,6 +103,32 @@ class QueuedMessage < ApplicationRecord
       self.class.ready.where(batch_key: batch_key, ip_address_id: ip_address_id, locked_by: nil, locked_at: nil).limit(limit).update_all(locked_by: locker, locked_at: time)
       QueuedMessage.where(batch_key: batch_key, ip_address_id: ip_address_id, locked_by: locker, locked_at: time).where.not(id: id)
     end
+  end
+
+  # Resolve and cache MX domain for this message
+  def resolve_mx_domain!
+    return mx_domain if mx_domain.present?
+
+    recipient_domain = message&.recipient_domain
+    return nil unless recipient_domain
+
+    resolved = MXDomainResolver.resolve(recipient_domain)
+    update_column(:mx_domain, resolved)
+    resolved
+  end
+
+  # Check if MX is currently rate limited
+  def mx_rate_limited?
+    return false unless mx_domain.present?
+
+    MXRateLimit.rate_limited?(server, mx_domain)
+  end
+
+  # Get active rate limit for this message's MX
+  def mx_rate_limit
+    return nil unless mx_domain.present?
+
+    MXRateLimit.find_by(server: server, mx_domain: mx_domain)
   end
 
   private

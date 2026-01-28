@@ -98,6 +98,12 @@ module Postal
       "clamav.host" => -> (c) { c.dig("clamav", "host") },
       "clamav.port" => -> (c) { c.dig("clamav", "port") },
 
+      "truemail.enabled" => -> (c) { c.dig("truemail", "enabled") },
+      "truemail.host" => -> (c) { c.dig("truemail", "host") },
+      "truemail.port" => -> (c) { c.dig("truemail", "port") },
+      "truemail.ssl" => -> (c) { c.dig("truemail", "ssl") },
+      "truemail.timeout" => -> (c) { c.dig("truemail", "timeout") },
+
       "smtp_client.open_timeout" => -> (c) { c.dig("smtp_client", "open_timeout") },
       "smtp_client.read_timeout" => -> (c) { c.dig("smtp_client", "read_timeout") }
 

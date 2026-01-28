@@ -12,12 +12,18 @@ Rails.application.routes.draw do
       match :verify, on: :member, via: [:get, :post]
       get :setup, on: :member
       post :check, on: :member
+      get :edit_security, on: :member
+      patch :update_security, on: :member
+      post :check_mta_sts_policy, on: :member
     end
     resources :servers, except: [:index] do
       resources :domains, only: [:index, :new, :create, :destroy] do
         match :verify, on: :member, via: [:get, :post]
         get :setup, on: :member
         post :check, on: :member
+        get :edit_security, on: :member
+        patch :update_security, on: :member
+        post :check_mta_sts_policy, on: :member
       end
       resources :track_domains do
         post :toggle_ssl, on: :member
@@ -45,12 +51,18 @@ Rails.application.routes.draw do
         post :retry, on: :member
         post :cancel_hold, on: :member
         get :suppressions, on: :collection
+        get :throttled_domains, on: :collection
+        delete "throttled_domains/:id", on: :collection, action: "remove_throttled_domain", as: "throttled_domain"
         delete :remove_from_queue, on: :member
         get :deliveries, on: :member
       end
       resources :webhooks do
         get :history, on: :collection
         get "history/:uuid", on: :collection, action: "history_request", as: "history_request"
+      end
+      resources :mx_rate_limits, only: [:index] do
+        get :summary, on: :collection
+        get :stats, on: :member, constraints: { id: /[^\/]+/ }
       end
       get :limits, on: :member
       get :retention, on: :member
@@ -132,6 +144,7 @@ Rails.application.routes.draw do
   end
 
   get ".well-known/jwks.json" => "well_known#jwks"
+  get ".well-known/mta-sts.txt" => "mta_sts#policy"
 
   get "ip" => "sessions#ip"
 

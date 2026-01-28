@@ -110,6 +110,13 @@ class SMTPSender < BaseSender
       else
         r.retry = true
       end
+
+      # Check for rate limiting responses (451 too many messages, slow down, etc.)
+      if requires_domain_throttle?(e.message)
+        r.domain_throttle_required = true
+        r.domain_throttle_duration = extract_throttle_duration(e.message)
+        logger.info "Domain throttling required: #{r.domain_throttle_duration} seconds"
+      end
     end
   rescue Net::SMTPFatalError => e
     logger.error "#{e.class}: #{e.message}"
@@ -183,13 +190,16 @@ class SMTPSender < BaseSender
   # @param endpoint [SMTPClient::Endpoint]
   # @return [Boolean]
   def connect_to_endpoint(endpoint, allow_ssl: true)
-    if @source_ip_address && @source_ip_address.ipv6.blank? && endpoint.ipv6?
-      # Don't try to use IPv6 if the IP address we're sending from doesn't support it.
+    if (@source_ip_address && @source_ip_address.ipv6.blank? && endpoint.ipv6?) || Postal::Config.smtp.disable_ipv6
+      # Don't try to use IPv6 if the IP address we're sending from doesn't support it or if it's disabled in the config.
       return false
     end
 
     # Add this endpoint to the list of endpoints that we have attempted to connect to
     @endpoints << endpoint unless @endpoints.include?(endpoint)
+
+    logger.info "SMTP connect to: #{endpoint}"
+    logger.info "SMTP HELO/EHLO: #{@source_ip_address ? @source_ip_address.hostname : endpoint.class.default_helo_hostname}"
 
     endpoint.start_smtp_session(allow_ssl: allow_ssl, source_ip_address: @source_ip_address)
     logger.info "Connected to #{endpoint}"
@@ -209,7 +219,7 @@ class SMTPSender < BaseSender
     end
 
     # Otherwise, just log the connection error and return false
-    logger.error "Cannot connect to #{endpoint} (#{e.class}: #{e.message})"
+    logger.error "Cannot connect to #{endpoint} (#{e.class}: #{e.message}) from #{@source_ip_address.nil? ? 'default IP' : @source_ip_address.ipv4}"
     @connection_errors << e.message unless @connection_errors.include?(e.message)
 
     false
@@ -360,6 +370,50 @@ class SMTPSender < BaseSender
     config&.soft_bounce_window_minutes || IPBlacklist::SoftBounceTracker::DEFAULT_WINDOW_MINUTES
   rescue StandardError
     IPBlacklist::SoftBounceTracker::DEFAULT_WINDOW_MINUTES
+  end
+
+  # Check if the error message indicates that domain-level throttling is required
+  #
+  # @param message [String] the SMTP error message
+  # @return [Boolean]
+  def requires_domain_throttle?(message)
+    return false if message.blank?
+
+    # Exclude messages that contain an IP address (these are typically IP-specific blocks, not domain throttling)
+    ip_pattern = /\b(?:\d{1,3}\.){3}\d{1,3}\b/
+    return false if message.match?(ip_pattern)
+
+    # Match common patterns for rate limiting responses
+    # 451 is the standard code for "try again later"
+    throttle_patterns = [
+      /\b451\b.*\b(too many|rate limit|slow down|try again later|temporarily deferred)/i,
+      /\b(too many messages|too many connections|rate limit|sending rate|slow down)\b/i,
+      /\b(temporarily rejected|temporarily deferred|try again later)\b.*\b(rate|limit|too many)/i,
+    ]
+
+    throttle_patterns.any? { |pattern| message.match?(pattern) }
+  end
+
+  # Extract throttle duration from SMTP error message
+  #
+  # @param message [String] the SMTP error message
+  # @return [Integer] duration in seconds (default: 300 = 5 minutes)
+  def extract_throttle_duration(message)
+    default_duration = DomainThrottle::DEFAULT_THROTTLE_DURATION
+
+    return default_duration if message.blank?
+
+    # Try to extract a specific time from the message
+    if message =~ /(\d+)\s*seconds?/i
+      return [::Regexp.last_match(1).to_i + 10, default_duration].max
+    elsif message =~ /(\d+)\s*minutes?/i
+      return [(::Regexp.last_match(1).to_i * 60) + 10, default_duration].max
+    elsif message =~ /(\d+)\s*hours?/i
+      # Cap at max throttle duration for very long delays
+      return [::Regexp.last_match(1).to_i * 3600, DomainThrottle::MAX_THROTTLE_DURATION].min
+    end
+
+    default_duration
   end
 
   class << self

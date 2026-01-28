@@ -63,6 +63,10 @@ class Server < ApplicationRecord
   has_many :address_endpoints, dependent: :destroy
   has_many :routes, dependent: :destroy
   has_many :queued_messages, dependent: :delete_all
+  has_many :domain_throttles, dependent: :delete_all
+  has_many :mx_rate_limits, dependent: :delete_all
+  has_many :mx_rate_limit_events, dependent: :delete_all
+  has_many :mx_rate_limit_whitelists, dependent: :delete_all
   has_many :webhooks, dependent: :destroy
   has_many :webhook_requests, dependent: :destroy
   has_many :track_domains, dependent: :destroy
@@ -80,7 +84,12 @@ class Server < ApplicationRecord
   validates :mode, inclusion: { in: MODES }
   validates :permalink, presence: true, uniqueness: { scope: :organization_id, case_sensitive: false }, format: { with: /\A[a-z0-9-]*\z/ }, exclusion: { in: RESERVED_PERMALINKS }
   validate :validate_ip_pool_belongs_to_organization
-
+  validates :priority, presence: true, numericality: {
+    only_integer: true,
+    greater_than_or_equal_to: 0,
+    less_than_or_equal_to: 32_767,
+    message: "must be a whole number between 0 and 32,767"
+  }
   before_validation(on: :create) do
     self.token = token.downcase if token
   end
@@ -297,6 +306,10 @@ class Server < ApplicationRecord
     end
 
     ip_pool
+  end
+
+  def truemail_enabled?
+    truemail_enabled == true
   end
 
   private

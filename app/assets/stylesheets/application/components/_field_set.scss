@@ -126,3 +126,27 @@
     margin-top:6px;
   }
 }
+
+.fieldSet__checkboxWrapper {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.fieldSet__checkbox {
+  width: auto !important;
+  margin: 0 10px 0 0;
+  cursor: pointer;
+  transform: scale(1.3);
+}
+
+.fieldSet__checkboxLabel {
+  margin: 0;
+  font-weight: 600;
+  color: $darkBlue;
+  cursor: pointer;
+  text-transform: none;
+  font-size: 14px;
+  width: auto;
+}
+

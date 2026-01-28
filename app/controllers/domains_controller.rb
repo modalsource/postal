@@ -106,4 +106,52 @@ class DomainsController < ApplicationController
     end
   end
 
+  def edit_security
+    # View for editing MTA-STS and TLS-RPT settings
+  end
+
+  def update_security
+    permitted_params = params.require(:domain).permit(
+      :mta_sts_enabled,
+      :mta_sts_mode,
+      :mta_sts_max_age,
+      :mta_sts_mx_patterns,
+      :tls_rpt_enabled,
+      :tls_rpt_email
+    )
+
+    if @domain.update(permitted_params)
+      redirect_to_with_json [:setup, organization, @server, @domain], notice: "Security settings updated successfully."
+    else
+      render_form_errors "edit_security", @domain
+    end
+  end
+
+  def check_mta_sts_policy
+    return head :not_found unless @domain.mta_sts_enabled
+
+    @result = @domain.check_mta_sts_policy_file
+
+    respond_to do |format|
+      format.js do
+        # La vista check_mta_sts_policy.js.erb gestirà la risposta
+      end
+      format.json do
+        if @result[:success]
+          render json: {
+            success: true,
+            message: "MTA-STS policy file is accessible and valid at #{@domain.mta_sts_policy_url}",
+            url: @domain.mta_sts_policy_url
+          }
+        else
+          render json: {
+            success: false,
+            error: @result[:error],
+            url: @domain.mta_sts_policy_url
+          }
+        end
+      end
+    end
+  end
+
 end

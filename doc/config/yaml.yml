@@ -23,6 +23,8 @@ postal:
   use_local_ns_for_domain_verification: false
   # Append a Resend-Sender header to all outgoing e-mails
   use_resent_sender_header: true
+  # The default size for new DKIM keys
+  default_dkim_key_size: 1024
   # Path to the private key used for signing
   signing_key_path: $config-file-root/signing.key
   # An array of SMTP relays in the format of smtp://host:port
@@ -33,6 +35,32 @@ postal:
   queued_message_lock_stale_days: 1
   # When enabled queued messages will be de-queued in batches based on their destination
   batch_queued_messages: true
+  # When de-queuing in batches, use this limit for the batch size
+  batch_queued_messages_limit: 100
+  # Enable domain-based throttling system
+  domain_throttling_enabled: false
+  # Enable MX-based rate limiting system
+  mx_rate_limiting_enabled: true
+  # Log rate limiting decisions without actually throttling messages
+  mx_rate_limiting_shadow_mode: false
+  # Seconds to add per consecutive error (linear backoff)
+  mx_rate_limiting_delay_increment: 300
+  # Maximum delay in seconds (cap for backoff)
+  mx_rate_limiting_max_delay: 3600
+  # Number of consecutive successes needed for one recovery step
+  mx_rate_limiting_recovery_threshold: 5
+  # Seconds to reduce per recovery step
+  mx_rate_limiting_delay_decrement: 120
+  # MX DNS cache TTL in seconds
+  mx_rate_limiting_mx_cache_ttl: 3600
+  # Cleanup task interval in seconds
+  mx_rate_limiting_cleanup_interval: 3600
+  # Number of days to retain MX rate limit events
+  mx_rate_limiting_event_retention_days: 30
+  # Hours after last success before cleaning up inactive rate limits
+  mx_rate_limiting_inactive_cleanup_hours: 24
+  # Seconds to wait before logging another throttled event for the same MX domain (prevents flood of duplicate events)
+  mx_rate_limiting_throttled_event_window: 300
 
 web_server:
   # The default port the web server should listen on unless overriden by the PORT environment variable
@@ -151,6 +179,8 @@ dns:
   timeout: 5
   # The path to the resolv.conf file containing addresses for local nameservers
   resolv_conf_path: /etc/resolv.conf
+  # The preferred DMARC DNS record to check against configured domains
+  dmarc_preferred_dns_entry: 
 
 smtp:
   # The hostname to send application-level e-mails to
@@ -173,6 +203,8 @@ smtp:
   from_name: Postal
   # The e-mail to use as the from address outgoing emails from Postal
   from_address: postal@example.com
+  # Disalbles sending emails via IPv6, only IPv4 will be used
+  disable_ipv6: false
 
 rails:
   # The Rails environment to run the application in
@@ -210,6 +242,20 @@ clamav:
   # The port of the ClamAV server
   port: 2000
 
+truemail:
+  # Enable Truemail for email address validation
+  enabled: false
+  # The host of the Truemail API server
+  host: 127.0.0.1
+  # The port of the Truemail API server
+  port: 9292
+  # Enable SSL for Truemail API connection
+  ssl: false
+  # Authentication token for Truemail API server
+  token: 
+  # Request timeout for Truemail API calls (seconds)
+  timeout: 10
+
 smtp_client:
   # The open timeout for outgoing SMTP connections
   open_timeout: 30
@@ -233,6 +279,8 @@ oidc:
   name: OIDC Provider
   # The OIDC issuer URL
   issuer: 
+  # Option to enable Proof Key for Code Exchange by OAuth Public Clients
+  pkce: false
   # The client ID for OIDC
   identifier: 
   # The client secret for OIDC

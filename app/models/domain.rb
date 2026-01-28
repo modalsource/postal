@@ -58,6 +58,7 @@ class Domain < ApplicationRecord
 
   VERIFICATION_EMAIL_ALIASES = %w[webmaster postmaster admin administrator hostmaster].freeze
   VERIFICATION_METHODS = %w[DNS Email].freeze
+  MTA_STS_MODES = %w[none testing enforce].freeze
 
   belongs_to :server, optional: true
   belongs_to :owner, optional: true, polymorphic: true
@@ -66,6 +67,9 @@ class Domain < ApplicationRecord
 
   validates :name, presence: true, format: { with: /\A[a-z0-9\-.]*\z/ }, uniqueness: { case_sensitive: false, scope: [:owner_type, :owner_id], message: "is already added" }
   validates :verification_method, inclusion: { in: VERIFICATION_METHODS }
+  validates :mta_sts_mode, inclusion: { in: MTA_STS_MODES }, allow_nil: true
+  validates :mta_sts_max_age, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :tls_rpt_email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
 
   random_string :dkim_identifier_string, type: :chars, length: 6, unique: true, upper_letters_only: true
 
@@ -94,7 +98,7 @@ class Domain < ApplicationRecord
   end
 
   def generate_dkim_key
-    self.dkim_private_key = OpenSSL::PKey::RSA.new(1024).to_s
+    self.dkim_private_key = OpenSSL::PKey::RSA.new(Postal::Config.postal.default_dkim_key_size).to_s
   end
 
   def dkim_key
@@ -143,6 +147,14 @@ class Domain < ApplicationRecord
     "#{Postal::Config.dns.custom_return_path_prefix}.#{name}"
   end
 
+  def dmarc_record
+    Postal::Config.dns.dmarc_preferred_dns_entry
+  end
+
+  def dmarc_record_name
+    "_dmarc.#{name}"
+  end
+
   # Returns a DNSResolver instance that can be used to perform DNS lookups needed for
   # the verification and DNS checking for this domain.
   #
@@ -168,6 +180,66 @@ class Domain < ApplicationRecord
     end
 
     false
+  end
+
+  # MTA-STS methods
+
+  def mta_sts_record_name
+    "_mta-sts.#{name}"
+  end
+
+  def mta_sts_record_value
+    "v=STSv1; id=#{mta_sts_policy_id};"
+  end
+
+  def mta_sts_policy_id
+    # Genera un ID univoco basato sulla configurazione corrente
+    # Cambia ogni volta che la policy viene modificata
+    data = "#{mta_sts_mode}:#{mta_sts_max_age}:#{mta_sts_mx_patterns}:#{updated_at.to_i}"
+    Digest::SHA256.hexdigest(data)[0..19]
+  end
+
+  def mta_sts_policy_content
+    return nil unless mta_sts_enabled
+
+    mx_list = if mta_sts_mx_patterns.present?
+                mta_sts_mx_patterns.split("\n").map(&:strip).reject(&:blank?)
+              else
+                default_mta_sts_mx_patterns
+              end
+
+    policy = []
+    policy << "version: STSv1"
+    policy << "mode: #{mta_sts_mode}"
+    mx_list.each { |mx| policy << "mx: #{mx}" }
+    policy << "max_age: #{mta_sts_max_age}"
+    policy.join("\n") + "\n"
+  end
+
+  def default_mta_sts_mx_patterns
+    # Usa gli MX records configurati in Postal
+    Postal::Config.dns.mx_records.map { |mx| "*.#{mx}" }
+  end
+
+  def mta_sts_policy_url
+    "https://mta-sts.#{name}/.well-known/mta-sts.txt"
+  end
+
+  # TLS-RPT methods
+
+  def tls_rpt_record_name
+    "_smtp._tls.#{name}"
+  end
+
+  def tls_rpt_record_value
+    return nil unless tls_rpt_enabled
+
+    email = tls_rpt_email.presence || default_tls_rpt_email
+    "v=TLSRPTv1; rua=mailto:#{email}"
+  end
+
+  def default_tls_rpt_email
+    "tls-reports@#{name}"
   end
 
   private
