@@ -2,6 +2,30 @@
 
 This file contains all the latest changes and updates to Postal.
 
+## [3.6.0](https://github.com/modalsource/postal/compare/3.5.2...3.6.0) (2026-03-20)
+
+
+### Features
+
+* add POSTAL_BATCH_QUEUED_MESSAGES_LIMIT environment variable for batch size configuration ([8c5bc6f](https://github.com/modalsource/postal/commit/8c5bc6f7fdc42550ca0484c8d0da86445ed6d73e))
+* add throttled domains management interface and functionality ([7fa76e9](https://github.com/modalsource/postal/commit/7fa76e90db9032830ffdb4c4ffbaa61b9bafc28c))
+* add throttled domains management interface and functionality ([e68834d](https://github.com/modalsource/postal/commit/e68834d1be11038b75dc5fe869baa1c828a1c597))
+* add throttled domains management interface and functionality ([65cf002](https://github.com/modalsource/postal/commit/65cf0021e6b83484f7cf49eb16f7b0603b328805))
+* Automatic IP Blacklist Management & Reputation System ([#61](https://github.com/modalsource/postal/issues/61)) ([896ae5c](https://github.com/modalsource/postal/commit/896ae5ce6d10ef099ed0e1558650f43d4db465dc))
+* Domain Throttling: Exclude messages that contain an IP address (these are typically IP-specific blocks, not domain throttling) ([7d3b288](https://github.com/modalsource/postal/commit/7d3b28861abf09111da1d05d491613e9d104924b))
+* enhance SMTP logging for connection and message sending ([e03a5c5](https://github.com/modalsource/postal/commit/e03a5c50f886eeb83f1158d5e53c94a2a927a623))
+* implement domain throttling for SMTP rate limiting ([7b4d3f2](https://github.com/modalsource/postal/commit/7b4d3f2cecb265e476dd44ca4647452ee2daf671))
+* implement Phase 1 & 2 of MX-based rate limiting system ([b20fe60](https://github.com/modalsource/postal/commit/b20fe600c2e3df80e5d1ac7bec0ece300a6742eb))
+* reallocates IP address for the retry after a softfail ([a04c7e7](https://github.com/modalsource/postal/commit/a04c7e7f82f1abef91cfd945c71341f93b698f37))
+
+
+### Bug Fixes
+
+* Add detection for Outlook/Exchange 'blocked using' messages in SMTP response parser ([e1fa036](https://github.com/modalsource/postal/commit/e1fa03666b73687aea905c6551b24003108bec8e))
+* correct schema version format to use integer without underscores ([4746d41](https://github.com/modalsource/postal/commit/4746d41f83ec0876d32e35f1337393ba380164fb))
+* update domain throttles migration to use Rails 7.1 ([c73c970](https://github.com/modalsource/postal/commit/c73c970c8d41407d4868aa91396820f018d9a498))
+* update schema.rb with domain_throttles table ([d53ef8f](https://github.com/modalsource/postal/commit/d53ef8fd720cd3fe19e4150e62027a0fb61155f3))
+
 ## [3.5.2](https://github.com/modalsource/postal/compare/3.5.1...3.5.2) (2025-11-24)
 
 
