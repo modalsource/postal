@@ -190,8 +190,10 @@ module SMTPServer
                   if io.is_a?(OpenSSL::SSL::SSLSocket)
                     buffers[io] << io.readpartial(10_240) while io.pending.positive?
                   end
-                rescue EOFError, Errno::ECONNRESET, Errno::ETIMEDOUT
-                  # Client went away
+                rescue EOFError, Errno::ECONNRESET, Errno::ETIMEDOUT, OpenSSL::SSL::SSLError
+                  # Client went away. On a TLS socket an abrupt disconnect surfaces
+                  # as an OpenSSL::SSL::SSLError ("SSL_read: unexpected eof") rather
+                  # than an EOFError, so we treat it the same way.
                   eof = true
                 end
 
