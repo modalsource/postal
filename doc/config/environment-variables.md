@@ -19,6 +19,7 @@ This document contains all the environment variables which are available for thi
 | `POSTAL_SIGNING_KEY_PATH` | String | Path to the private key used for signing | $config-file-root/signing.key |
 | `POSTAL_SMTP_RELAYS` | Array of strings | An array of SMTP relays in the format of smtp://host:port | [] |
 | `POSTAL_TRUSTED_PROXIES` | Array of strings | An array of IP addresses to trust for proxying requests to Postal (in addition to localhost addresses) | [] |
+| `POSTAL_ALLOWED_REQUEST_DESTINATIONS` | Array of strings | Hostnames or IP/CIDR ranges that outbound webhook and HTTP endpoint requests are permitted to reach even when they resolve to a private, loopback, link-local or otherwise reserved address. All other such destinations are blocked to prevent SSRF. | [] |
 | `POSTAL_QUEUED_MESSAGE_LOCK_STALE_DAYS` | Integer | The number of days after which to consider a lock as stale. Messages with stale locks will be removed and not retried. | 1 |
 | `POSTAL_BATCH_QUEUED_MESSAGES` | Boolean | When enabled queued messages will be de-queued in batches based on their destination | true |
 | `POSTAL_BATCH_QUEUED_MESSAGES_LIMIT` | Integer | When de-queuing in batches, use this limit for the batch size | 100 |

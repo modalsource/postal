@@ -35,3 +35,6 @@ BRANCH
 .env*
 
 .idea
+node_modules
+yarn.lock
+
