@@ -2,12 +2,15 @@ name: 'Close stale issues and PRs'
 on:
   schedule:
     - cron: '30 1 * * *'
-  workflow_dispatch: 
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
 permissions:
   issues: write
   pull-requests: write
 jobs:
   stale:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/stale@v9
@@ -28,3 +31,35 @@ jobs:
           exempt-all-assignees: true
           exempt-all-milestones: true
           exempt-issue-labels: bug,enhancement,docs,install,feature
+
+  close-linked:
+    # Closes every PR listed as "Linked PR: N" in the body of the PR that was
+    # just closed or merged. Generic: no PR numbers are hardcoded here.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close linked PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          NUMBERS=$(printf '%s' "$PR_BODY" | grep -oiE 'linked pr: *#?[0-9]+' | grep -oE '[0-9]+' | sort -u)
+          if [ -z "$NUMBERS" ]; then
+            echo "No linked PRs found in the body"
+            exit 0
+          fi
+          STATE="closed"
+          if [ "$PR_MERGED" = "true" ]; then
+            STATE="merged"
+          fi
+          for n in $NUMBERS; do
+            if [ "$n" = "$PR_NUMBER" ]; then
+              continue
+            fi
+            gh pr close "$n" --repo "$REPO" \
+              --comment "Auto-closing: linked PR #$PR_NUMBER was $STATE." \
+              || echo "::notice::PR #$n is already closed"
+          done
