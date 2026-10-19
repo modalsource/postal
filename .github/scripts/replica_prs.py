@@ -220,6 +220,66 @@ def get_pr_commit_shas(pr):
         return None
 
 
+def get_fork_substitutions():
+    """Sostituzioni statiche da applicare ai file replicati per mantenere
+    validi nel fork i riferimenti all'infrastruttura upstream
+    (es. il nome immagine ghcr: ghcr.io/<upstream> -> ghcr.io/<fork>)."""
+    upstream = (os.environ.get("UPSTREAM_REPO") or "").strip().lower()
+    fork = (os.environ.get("FORK_REPO") or "").strip().lower()
+    if not upstream or not fork or upstream == fork:
+        return []
+    return [
+        # Le workflow CI pubblicano l'immagine container su ghcr.io/<owner>/<repo>:
+        # puntarle all'immagine del fork per non rompere la CI replicata.
+        (f"ghcr.io/{upstream}", f"ghcr.io/{fork}"),
+    ]
+
+def apply_fork_substitutions(repo_dir, pr, base_sha):
+    """Applica sostituzioni statiche ai SOLO file modificati dalla replica.
+
+    Le sostituzioni vengono applicate in un commit separato dopo i cherry-pick
+    (i commit originali restano intatti). Mai fatale."""
+    substitutions = get_fork_substitutions()
+    if not substitutions or not base_sha:
+        return 0
+
+    diff_output = get_git_output(f"git diff --name-only '{base_sha}' HEAD", cwd=repo_dir)
+    if not diff_output:
+        return 0
+
+    modified = 0
+    for path in [line.strip() for line in diff_output.splitlines() if line.strip()]:
+        file_path = os.path.join(repo_dir, path)
+        if not os.path.isfile(file_path):
+            continue
+        try:
+            with open(file_path, "r", encoding="utf-8") as handle:
+                content = handle.read()
+        except (UnicodeDecodeError, OSError):
+            print(f"    ⏭️  Sostituzioni saltate (file binario/non testuale): {path}")
+            continue
+        new_content = content
+        for old, new in substitutions:
+            new_content = new_content.replace(old, new)
+        if new_content != content:
+            try:
+                with open(file_path, "w", encoding="utf-8") as handle:
+                    handle.write(new_content)
+            except OSError as e:
+                print(f"    ⚠️  Impossibile scrivere {path}: {e}")
+                continue
+            run_git_command(f"git add '{path}'", cwd=repo_dir)
+            modified += 1
+
+    if modified > 0:
+        pairs = ", ".join(f"{old} → {new}" for old, new in substitutions)
+        print(f"  🔧 Sostituzioni applicate a {modified} file: {pairs}")
+        commit_command = f"git commit -m 'Replica: fork-specific substitutions' -m '(Keeps upstream infrastructure references working after replication of {pr.html_url})'"
+        if not run_git_command(commit_command, cwd=repo_dir):
+            print(f"  ⚠️  Impossibile creare il commit di sostituzioni (non fatale)")
+    return modified
+
+
 def prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_branch, gh_token, pr, fork_branch_name):
     """Prepara il branch di replica clonando il fork e applicando SOLO i commit della PR originale.
 
@@ -237,7 +297,7 @@ def prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_b
     clone_command = f"git clone --branch {default_branch} '{fork_url}' '{repo_dir}'"
     if not run_git_command(clone_command, timeout=300):
         print(f"  ❌ Impossibile clonare il fork")
-        return False, None
+        return False, None, 0
 
     setup_git_config(repo_dir)
 
@@ -250,13 +310,16 @@ def prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_b
         fetched = run_git_command(f"git fetch '{upstream_pr_url}' 'refs/pull/{pr.number}/head'", cwd=repo_dir, timeout=180)
     if not fetched:
         print(f"  ❌ Impossibile scaricare i commit della PR")
-        return False, None
+        return False, None, 0
 
     # Crea il branch di replica
     print(f"  🌳 Creando branch di replica {fork_branch_name}...")
     if not run_git_command(f"git checkout -b {fork_branch_name}", cwd=repo_dir):
         print(f"  ❌ Impossibile creare il branch di replica")
-        return False, None
+        return False, None, 0
+
+    # Snapshot della base del fork (riferimento per le sostituzioni successive)
+    base_sha = get_git_output("git rev-parse HEAD", cwd=repo_dir)
 
     # Applica SOLO i commit della PR originale (mantiene gli autori originali)
     commit_shas = get_pr_commit_shas(pr)
@@ -269,14 +332,18 @@ def prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_b
                 patch_url = f"https://github.com/{pr.base.repo.full_name}/pull/{pr.number}.diff"
                 if not run_git_command(f"curl -sL '{patch_url}' | git apply --index -", cwd=repo_dir, timeout=180):
                     print(f"  ❌ Impossibile applicare i commit della PR")
-                    return False, None
+                    return False, None, 0
                 if not run_git_command(f"git commit -m 'Replica: {pr.title}' -m '(Replicated from {pr.html_url})'", cwd=repo_dir):
                     print(f"  ❌ Impossibile creare il commit di replica")
-                    return False, None
+                    return False, None, 0
                 break
     else:
         print(f"  ❌ Nessun commit disponibile per la replica")
-        return False, None
+        return False, None, 0
+
+    # Sostituzioni statiche (es. nome immagine ghcr upstream -> fork) sui SOLO
+    # file modificati dalla replica, per non rompere la CI del fork
+    substituted_count = apply_fork_substitutions(repo_dir, pr, base_sha)
 
     # Tracking della divergenza upstream (best-effort, mai fatale):
     # conta i commit del main upstream non presenti nel fork — solo per tracciamento,
@@ -298,10 +365,10 @@ def prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_b
         print(f"  🔄 Tentativo con force push...")
         if not run_git_command(f"git push --force origin {fork_branch_name}", cwd=repo_dir, timeout=180):
             print(f"  ❌ Push al fork fallito")
-            return False, None
+            return False, None, 0
 
     print(f"  ✅ Branch di replica preparato e push completato (solo commit della PR originale)")
-    return True, upstream_only_count
+    return True, upstream_only_count, substituted_count
 
 def should_skip_pr(pr_title):
     """Determina se una PR deve essere saltata basandosi sul titolo"""
@@ -440,7 +507,7 @@ def main():
                 fork_url = f"https://{gh_token}@github.com/{fork_repo}.git"
 
                 # Prepara il branch di replica (solo i commit della PR originale)
-                ok, upstream_only_count = prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_branch, gh_token, pr, fork_branch_name)
+                ok, upstream_only_count, substituted_count = prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_branch, gh_token, pr, fork_branch_name)
                 if not ok:
                     print(f"  ❌ Errore nella preparazione del branch di replica")
                     error_count += 1
@@ -455,6 +522,11 @@ def main():
                 scope_note = f"""
 ⚠️ **Nota di scope:** sono stati replicati SOLO i commit della PR originale. Il main upstream è {upstream_only_count} commit avanti rispetto alla base di questa replica ({pr.base.sha[:7] if pr.base.sha else 'N/A'}): gli aggiornamenti del main upstream NON sono inclusi (scope diverso), la divergenza viene solo tracciata."""
 
+            substitutions_note = ""
+            if substituted_count:
+                substitutions_note = f"""
+🔧 **Nota sostituzioni:** {substituted_count} file della replica contenevano riferimenti all'infrastruttura upstream (es. immagine ghcr): sostituiti automaticamente per non rompere la CI del fork."""
+
             pr_body = f"""Questa PR replica la PR originale: {pr.html_url}
 
 **Autore originale:** @{pr_author}
@@ -463,7 +535,7 @@ def main():
 
 ---
 
-{pr.body or 'Nessuna descrizione fornita.'}{scope_note}"""
+{pr.body or 'Nessuna descrizione fornita.'}{scope_note}{substitutions_note}"""
 
             try:
                 new_pr = fork.create_pull(
