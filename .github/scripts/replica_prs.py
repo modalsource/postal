@@ -2,9 +2,6 @@ import os
 import sys
 import subprocess
 import tempfile
-import shutil
-import tarfile
-import requests
 from github import Github
 from github.GithubException import GithubException
 import time
@@ -192,6 +189,10 @@ def get_clone_url(pr, gh_token):
     """Genera l'URL di clone appropriato basato sul tipo di repository"""
     repo = pr.head.repo
 
+    # Il repo head può mancare se il fork dell'autore è stato cancellato
+    if repo is None:
+        return None
+
     # Se il repository è lo stesso dell'upstream, usa l'URL pubblico
     if repo.full_name == pr.base.repo.full_name:
         return repo.clone_url
@@ -210,225 +211,97 @@ def check_branch_exists_in_fork(fork, branch_name):
     except GithubException:
         return False
 
-def verify_repository_access(repo, gh_token):
-    """Verifica l'accesso al repository e fornisce informazioni diagnostiche"""
+def get_pr_commit_shas(pr):
+    """Ottiene gli SHA dei commit della PR originale"""
     try:
-        print(f"  🔍 Verificando accesso al repository: {repo.full_name}")
-        print(f"    - Privato: {repo.private}")
-        print(f"    - Fork: {repo.fork}")
-        print(f"    - Proprietario: {repo.owner.login}")
-        print(f"    - URL clone: {repo.clone_url}")
-        print(f"    - URL SSH: {repo.ssh_url}")
-
-        # Verifica permessi
-        permissions = repo.permissions
-        print(f"    - Permessi: admin={permissions.admin}, push={permissions.push}, pull={permissions.pull}")
-
-        return True
-    except GithubException as e:
-        print(f"  ❌ Errore verifica repository: {e}")
-        print(f"    - Status: {e.status}")
-        print(f"    - Data: {e.data}")
-        return False
-
-def try_download_repo_archive(repo, branch_name, target_dir, gh_token):
-    """Tenta di scaricare il repository come archivio tar.gz"""
-    try:
-        print(f"  📦 Download dell'archivio del repository...")
-        repo_name = repo.full_name
-        archive_url = f"https://api.github.com/repos/{repo_name}/tarball/{branch_name}"
-        headers = {"Authorization": f"token {gh_token}"}
-
-        # Effettua la richiesta per scaricare l'archivio
-        response = requests.get(archive_url, headers=headers, stream=True, timeout=30)
-        response.raise_for_status()
-
-        # Salva l'archivio nella directory temporanea
-        tarball_path = os.path.join(target_dir, f"{repo_name.replace('/', '_')}_{branch_name}.tar.gz")
-        with open(tarball_path, "wb") as tarball_file:
-            for chunk in response.iter_content(chunk_size=8192):
-                tarball_file.write(chunk)
-
-        # Estrai l'archivio
-        print(f"  📂 Estraendo l'archivio scaricato...")
-        with tarfile.open(tarball_path, "r:gz") as tar:
-            tar.extractall(path=target_dir)
-
-        # Trova la cartella estratta (di solito è la prima nella lista)
-        extracted_dirs = [d for d in os.listdir(target_dir) if os.path.isdir(os.path.join(target_dir, d))]
-        if not extracted_dirs:
-            print(f"  ❌ Errore: Nessuna cartella trovata nell'archivio estratto")
-            return False
-
-        # Rinomina la cartella estratta con un nome più semplice
-        extracted_dir = os.path.join(target_dir, extracted_dirs[0])
-        final_repo_dir = os.path.join(target_dir, "repo")
-        os.rename(extracted_dir, final_repo_dir)
-
-        print(f"  ✅ Download e estrazione completati: {final_repo_dir}")
-        return True
+        return [commit.sha for commit in pr.commits]
     except Exception as e:
-        print(f"  ❌ Errore nel download o estrazione dell'archivio: {e}")
-        return False
+        print(f"  ⚠️  Impossibile ottenere i commit della PR: {e}")
+        return None
 
-def clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, pr):
-    """Clona il repository e configura i remote"""
 
-    # Step 0: Verifica accesso al repository sorgente
-    print(f"  🔍 Diagnostica repository sorgente...")
-    if not verify_repository_access(pr.head.repo, gh_token):
-        print(f"  ❌ Impossibile accedere al repository sorgente")
-        return False
+def prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_branch, gh_token, pr, fork_branch_name):
+    """Prepara il branch di replica clonando il fork e applicando SOLO i commit della PR originale.
 
-    # Step 0.5: Configura git prima di tutto
+    Returns (success, upstream_only_count): upstream_only_count è il numero di commit
+    presenti nel main upstream ma non nel fork (solo per tracking, NON vengono replicati).
+    """
+
+    # Configura git prima di tutto
     print(f"  🔧 Configurazione preliminare git...")
     setup_git_config_global()
 
-    # Step 1: Clone del repository con multiple strategie
-    print(f"  📥 Clonando da: {clone_url.replace(gh_token, '***') if gh_token in clone_url else clone_url}")
+    # Clona il fork: il branch di replica nasce dal main del fork,
+    # NON dal main upstream (scope diverso)
+    print(f"  📥 Clonando il fork (base: {default_branch})...")
+    clone_command = f"git clone --branch {default_branch} '{fork_url}' '{repo_dir}'"
+    if not run_git_command(clone_command, timeout=300):
+        print(f"  ❌ Impossibile clonare il fork")
+        return False, None
 
-    # Strategia 1: Clone shallow con branch specifico
-    clone_command = f"git clone --depth=1 --single-branch --branch {branch_name} '{clone_url}' '{repo_dir}'"
-    success = run_git_command(clone_command, timeout=180)
-
-    if not success:
-        print(f"  🔄 Fallback 1: Clone completo con checkout...")
-        # Rimuovi directory se esiste parzialmente
-        if os.path.exists(repo_dir):
-            shutil.rmtree(repo_dir)
-
-        # Strategia 2: Clone completo poi checkout
-        clone_command = f"git clone '{clone_url}' '{repo_dir}'"
-        if not run_git_command(clone_command, timeout=300):
-            print(f"  🔄 Fallback 2: Tentativo senza autenticazione...")
-
-            # Strategia 3: Se il repo è pubblico, prova senza token
-            if clone_url.startswith("https://") and "@github.com" in clone_url:
-                public_url = clone_url.split("@github.com/")[1]
-                public_url = f"https://github.com/{public_url}"
-                print(f"  🌐 Tentativo con URL pubblico: {public_url}")
-
-                if os.path.exists(repo_dir):
-                    shutil.rmtree(repo_dir)
-
-                if not run_git_command(f"git clone '{public_url}' '{repo_dir}'", timeout=300):
-                    print(f"  🔄 Fallback 3: Metodo alternativo via tar.gz...")
-
-                    # Strategia 4: Download diretto del repository come archivio
-                    if try_download_repo_archive(pr.head.repo, branch_name, repo_dir, gh_token):
-                        print(f"  ✅ Download archivio completato con successo")
-                    else:
-                        print(f"  ❌ Tutti i tentativi di clone falliti")
-                        return False
-
-        # Checkout del branch se necessario (solo se il clone ha funzionato)
-        if os.path.exists(repo_dir) and os.path.exists(os.path.join(repo_dir, '.git')):
-            current_branch = get_git_output("git branch --show-current", cwd=repo_dir)
-            if current_branch != branch_name:
-                print(f"  🔄 Checkout branch {branch_name}...")
-                if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
-                    # Prova fetch + checkout
-                    print(f"  🔄 Fetch del branch {branch_name}...")
-                    if not run_git_command(f"git fetch origin {branch_name}:{branch_name}", cwd=repo_dir):
-                        # Ultima chance: fetch all branches e poi checkout
-                        print(f"  🔄 Fetch completo dei branch...")
-                        run_git_command("git fetch --all", cwd=repo_dir)
-
-                    # Lista tutti i branch disponibili per debug
-                    branches = get_git_output("git branch -a", cwd=repo_dir)
-                    print(f"  📋 Branch disponibili: {branches}")
-
-                    if not run_git_command(f"git checkout {branch_name}", cwd=repo_dir):
-                        # Prova con origin/ prefix
-                        if not run_git_command(f"git checkout origin/{branch_name}", cwd=repo_dir):
-                            print(f"  ❌ Impossibile fare checkout del branch {branch_name}")
-                            return False
-
-    # Step 2: Configura git nel repository clonato
     setup_git_config(repo_dir)
 
-    # Step 3: Verifica stato del repository
-    print(f"  🔍 Verifica stato repository...")
-    if os.path.exists(os.path.join(repo_dir, '.git')):
-        current_branch = get_git_output("git branch --show-current", cwd=repo_dir)
-        if current_branch and current_branch != branch_name:
-            print(f"  ⚠️  Branch corrente ({current_branch}) diverso da quello richiesto ({branch_name})")
-            # Non fallire se siamo su un branch correlato (es. origin/branch)
-            if f"origin/{branch_name}" not in current_branch and branch_name not in current_branch:
-                return False
+    # Scarica i commit della PR originale
+    print(f"  📥 Fetch dei commit della PR originale...")
+    fetched = run_git_command(f"git fetch '{clone_url}' '{branch_name}'", cwd=repo_dir, timeout=180)
+    if not fetched:
+        print(f"  🔄 Fallback: fetch da refs/pull/{pr.number}/head...")
+        upstream_pr_url = f"https://{gh_token}@github.com/{pr.base.repo.full_name}.git"
+        fetched = run_git_command(f"git fetch '{upstream_pr_url}' 'refs/pull/{pr.number}/head'", cwd=repo_dir, timeout=180)
+    if not fetched:
+        print(f"  ❌ Impossibile scaricare i commit della PR")
+        return False, None
+
+    # Crea il branch di replica
+    print(f"  🌳 Creando branch di replica {fork_branch_name}...")
+    if not run_git_command(f"git checkout -b {fork_branch_name}", cwd=repo_dir):
+        print(f"  ❌ Impossibile creare il branch di replica")
+        return False, None
+
+    # Applica SOLO i commit della PR originale (mantiene gli autori originali)
+    commit_shas = get_pr_commit_shas(pr)
+    if commit_shas:
+        print(f"  🍒 Applicando {len(commit_shas)} commit della PR originale...")
+        for sha in commit_shas:
+            if not run_git_command(f"git cherry-pick -x {sha}", cwd=repo_dir, timeout=120):
+                print(f"  🔄 Cherry-pick fallito per {sha}, fallback con patch completa della PR...")
+                run_git_command("git cherry-pick --abort", cwd=repo_dir)
+                patch_url = f"https://github.com/{pr.base.repo.full_name}/pull/{pr.number}.diff"
+                if not run_git_command(f"curl -sL '{patch_url}' | git apply --index -", cwd=repo_dir, timeout=180):
+                    print(f"  ❌ Impossibile applicare i commit della PR")
+                    return False, None
+                if not run_git_command(f"git commit -m 'Replica: {pr.title}' -m '(Replicated from {pr.html_url})'", cwd=repo_dir):
+                    print(f"  ❌ Impossibile creare il commit di replica")
+                    return False, None
+                break
     else:
-        print(f"  ℹ️  Repository scaricato come archivio (non è un repository git)")
+        print(f"  ❌ Nessun commit disponibile per la replica")
+        return False, None
 
-    # Step 4: Inizializza git se necessario e aggiungi remote del fork
-    if not os.path.exists(os.path.join(repo_dir, '.git')):
-        print(f"  🔧 Inizializzazione repository git...")
-        if not run_git_command("git init", cwd=repo_dir):
-            print(f"  ❌ Impossibile inizializzare repository git")
-            return False
+    # Tracking della divergenza upstream (best-effort, mai fatale):
+    # conta i commit del main upstream non presenti nel fork — solo per tracciamento,
+    # NON vengono replicati (scope diverso)
+    upstream_only_count = None
+    try:
+        upstream_base_url = f"https://github.com/{pr.base.repo.full_name}.git"
+        if run_git_command(f"git fetch '{upstream_base_url}' '{pr.base.ref}'", cwd=repo_dir, timeout=180):
+            count = get_git_output("git rev-list --count HEAD..FETCH_HEAD", cwd=repo_dir)
+            if count and count.strip().isdigit():
+                upstream_only_count = int(count.strip())
+                print(f"  📊 Upstream main è {upstream_only_count} commit avanti (solo tracking, NON replicati)")
+    except Exception as e:
+        print(f"  ⚠️  Impossibile calcolare la divergenza upstream (non fatale): {e}")
 
-        if not run_git_command("git add .", cwd=repo_dir):
-            print(f"  ❌ Impossibile aggiungere file al repository")
-            return False
-
-        if not run_git_command(f"git commit -m 'Initial commit from {pr.head.repo.full_name}#{branch_name}'", cwd=repo_dir):
-            print(f"  ❌ Impossibile creare commit iniziale")
-            return False
-
-    print(f"  🔗 Configurando remote fork...")
-    # Controlla se remote fork esiste già
-    remotes = get_git_output("git remote -v", cwd=repo_dir)
-    if remotes:
-        if "fork" in remotes:
-            print(f"  ℹ️  Remote fork già presente, rimuovendo per riconfigurare...")
-            run_git_command("git remote remove fork", cwd=repo_dir)
-
-        # Aggiungi sempre il remote fork
-        if not run_git_command(f"git remote add fork '{fork_url}'", cwd=repo_dir):
-            print(f"  ⚠️  Errore nell'aggiungere remote fork")
-            # Prova approccio alternativo: usa il remote origin
-            print(f"  🔄 Usando remote origin come fallback...")
-            if not run_git_command(f"git remote set-url origin '{fork_url}'", cwd=repo_dir):
-                print(f"  ❌ Impossibile configurare remote")
-                return False
-            fork_remote = "origin"
-        else:
-            fork_remote = "fork"
-    else:
-        # Se non ci sono remote (repository inizializzato da archivio)
-        print(f"  🔧 Aggiungendo primo remote...")
-        if not run_git_command(f"git remote add origin '{fork_url}'", cwd=repo_dir):
-            print(f"  ❌ Impossibile aggiungere remote origin")
-            return False
-        fork_remote = "origin"
-
-    # Verifica remote configurati
-    final_remotes = get_git_output("git remote -v", cwd=repo_dir)
-    print(f"  📋 Remote configurati: {final_remotes}")
-
-    # Step 5: Push del branch al fork
-    print(f"  📤 Push del branch {branch_name} al fork...")
-    current_branch = get_git_output("git branch --show-current", cwd=repo_dir) or "main"
-
-    # Crea un nome del branch che includa il repository sorgente per evitare conflitti
-    source_repo_name = pr.head.repo.full_name.replace('/', '-')
-    fork_branch_name = f"{source_repo_name}-{branch_name}"
-
-    print(f"  📝 Branch sul fork: {fork_branch_name}")
-
-    # Prova prima con il nome del branch corretto
-    push_command = f"git push {fork_remote} {current_branch}:{fork_branch_name}"
-    if not run_git_command(push_command, cwd=repo_dir, timeout=180):
-        # Prova force push se c'è un conflitto
+    # Push del branch di replica al fork
+    print(f"  📤 Push del branch {fork_branch_name} al fork...")
+    if not run_git_command(f"git push origin {fork_branch_name}", cwd=repo_dir, timeout=180):
         print(f"  🔄 Tentativo con force push...")
-        if not run_git_command(f"git push --force {fork_remote} {current_branch}:{fork_branch_name}", cwd=repo_dir, timeout=180):
-            # Ultimo tentativo: crea il branch e poi push
-            print(f"  🔄 Tentativo creando branch remoto...")
-            if not run_git_command(f"git push --set-upstream {fork_remote} {current_branch}:{fork_branch_name}", cwd=repo_dir, timeout=180):
-                print(f"  ❌ Push al fork fallito")
-                return False
+        if not run_git_command(f"git push --force origin {fork_branch_name}", cwd=repo_dir, timeout=180):
+            print(f"  ❌ Push al fork fallito")
+            return False, None
 
-    print(f"  ✅ Repository configurato e push completato")
-    return True
+    print(f"  ✅ Branch di replica preparato e push completato (solo commit della PR originale)")
+    return True, upstream_only_count
 
 def should_skip_pr(pr_title):
     """Determina se una PR deve essere saltata basandosi sul titolo"""
@@ -524,7 +397,7 @@ def main():
             print(f"\n🔍 Processando PR #{pr.number}: {pr_title}")
             print(f"    📝 Branch: {branch_name}")
             print(f"    👤 Autore: {pr_author}")
-            print(f"    🏠 Repository: {pr.head.repo.full_name}")
+            print(f"    🏠 Repository: {pr.head.repo.full_name if pr.head.repo else 'rimosso'}")
 
             # Verifica se la PR deve essere saltata
             should_skip, skip_reason = should_skip_pr(pr_title)
@@ -548,7 +421,7 @@ def main():
                 continue
 
             # Verifica se il branch esiste già nel fork (con il nuovo naming)
-            source_repo_name = pr.head.repo.full_name.replace('/', '-')
+            source_repo_name = pr.head.repo.full_name.replace('/', '-') if pr.head.repo else 'unknown-repo'
             fork_branch_name = f"{source_repo_name}-{branch_name}"
 
             if check_branch_exists_in_fork(fork, fork_branch_name):
@@ -566,23 +439,31 @@ def main():
                 # URL del fork con autenticazione
                 fork_url = f"https://{gh_token}@github.com/{fork_repo}.git"
 
-                # Clona e configura il repository
-                if not clone_and_setup_repo(clone_url, repo_dir, branch_name, fork_url, gh_token, pr):
-                    print(f"  ❌ Errore nella configurazione del repository")
+                # Prepara il branch di replica (solo i commit della PR originale)
+                ok, upstream_only_count = prepare_replica_branch(clone_url, repo_dir, branch_name, fork_url, default_branch, gh_token, pr, fork_branch_name)
+                if not ok:
+                    print(f"  ❌ Errore nella preparazione del branch di replica")
                     error_count += 1
                     continue
 
             # Crea una nuova PR nel fork
             print(f"  🔃 Creando PR nel fork...")
+
+            # Nota di scope: traccia la divergenza upstream senza replicarla
+            scope_note = ""
+            if upstream_only_count:
+                scope_note = f"""
+⚠️ **Nota di scope:** sono stati replicati SOLO i commit della PR originale. Il main upstream è {upstream_only_count} commit avanti rispetto alla base di questa replica ({pr.base.sha[:7] if pr.base.sha else 'N/A'}): gli aggiornamenti del main upstream NON sono inclusi (scope diverso), la divergenza viene solo tracciata."""
+
             pr_body = f"""Questa PR replica la PR originale: {pr.html_url}
 
 **Autore originale:** @{pr_author}
 **Branch originale:** `{branch_name}`
-**Repository originale:** {pr.head.repo.full_name}
+**Repository originale:** {pr.head.repo.full_name if pr.head.repo else 'repository originale rimosso'}
 
 ---
 
-{pr.body or 'Nessuna descrizione fornita.'}"""
+{pr.body or 'Nessuna descrizione fornita.'}{scope_note}"""
 
             try:
                 new_pr = fork.create_pull(
