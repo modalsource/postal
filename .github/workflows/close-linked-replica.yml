@@ -1,0 +1,25 @@
+name: 'Close replica PR when fix PR closes'
+on:
+  pull_request:
+    types: [closed]
+permissions:
+  pull-requests: write
+jobs:
+  close-replica:
+    # Scoped to PR #98 (its number is unique forever), so this job is inert
+    # once that PR is closed and never fires for other pull requests.
+    if: github.event.pull_request.number == 98
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close replica PR #88
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event.pull_request.merged }}" = "true" ]; then
+            REASON="merged"
+          else
+            REASON="closed without merging"
+          fi
+          gh pr close 88 --repo modalsource/postal \
+            --comment "Auto-closing: the fix PR #98 was ${REASON}." \
+            || echo "::notice::PR #88 is already closed"
