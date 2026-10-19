@@ -35,3 +35,5 @@ BRANCH
 .env*
 
 .idea
+
+**/__pycache__
